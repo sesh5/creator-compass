@@ -1,37 +1,24 @@
-## Goals
+## Why the search is failing
 
-1. Let the user add any YouTube channel to their watchlist — even one that isn't in the suggested list (search by handle, channel URL, or channel name).
-2. Remove the small external-link arrow on each suggested-competitor card (the icon circled in the screenshot).
+Two things stack on top of each other:
 
-## 1. Manual competitor search
+1. **YouTube `search` quota is still exhausted** (same daily quota as the earlier 429). Free-text queries like `Vj Siddhu Vlogs` go through `search.list`, which costs 100 units per call — your project is out for the day.
+2. **`searchCompetitorByQuery` silently swallows that quota error** through the same `isQuota` `break` we added to `searchChannelsByQuery`. It returns `[]`, so the UI shows the misleading "No channels found for …" instead of the real "quota exhausted" message.
 
-**UI** — on the Discover page, above "Suggested competitors", add a search bar:
+On top of that, the input has a stray leading apostrophe (`'Vj Siddhu Vlogs`) and no `@`, so even with quota we never try the cheap `channels.list?forHandle=` path (1 unit, separate quota bucket).
 
-```text
-[ Add a competitor manually                                  ] [ Search ]
-   Paste a YouTube URL, @handle, or channel name
-```
+## Fix
 
-Behavior:
-- Input accepts: `https://youtube.com/@handle`, `https://youtube.com/channel/UC...`, a bare `@handle`, a bare `UC…` ID, or a free-text channel name.
-- On submit, show up to ~5 matching channels as small result cards (thumbnail, name, subs) with **Add to watchlist** and **Teardown** buttons. Same card style as suggested competitors, minus the ranking number and "why watch" blurb (we just show the channel — no AI verdict needed for an explicit user pick).
-- Results persist on the page like the existing discovery results (TanStack Query cache) so leaving and returning to Discover keeps them visible.
-- Adding from here writes to the same watchlist as suggested competitors and shows up immediately in "Your watchlist" above.
+Edit `src/lib/discovery.functions.ts` → `searchCompetitorByQuery`:
 
-**Server** — new `searchCompetitorByQuery` server function in `src/lib/discovery.functions.ts`:
-- If the input parses as a channel ID/handle/URL → call existing `getChannelByHandleOrUrl` and return that single channel.
-- Otherwise → call `searchChannelsByQuery(query, 5)` then `getChannelsBulk` to hydrate name/subs/thumbnail.
-- Returns the same shape as suggested competitors (`channel_id`, `channel_name`, `subscriber_count`, `thumbnail_url`) with `niche_tag` and `why_watch` left empty so the watchlist insert still works.
-- Reuses the YouTube cache + the quota-friendly error handling already in `youtube.server.ts`, so a quota-exhausted day surfaces the same friendly toast.
+1. **Sanitize input** — trim, strip leading non-alphanumerics (e.g. `'`, `@`, whitespace).
+2. **Try the cheap handle path first** for any single-token-ish query: build a handle candidate by removing spaces (`VjSiddhuVlogs`) and call `getChannelByHandle`. This uses `channels.list` (1 unit, not subject to the exhausted Search quota), so it'll succeed today for queries that resemble a handle.
+3. **Detect quota on the search fallback** — wrap `searchChannelsByQuery` so it re-throws quota errors here (instead of swallowing). Surface a clear toast: "YouTube search quota is exhausted for today — try pasting the channel URL or @handle instead."
+4. **Improve the empty-state copy** in `src/routes/_authenticated/discover.tsx` to hint the user can paste a URL or `@handle` when free-text search is unavailable.
 
-## 2. Remove the external-link icon
+### Technical detail
 
-In `src/routes/_authenticated/discover.tsx`, delete the ghost `<Button>` with the `ExternalLink` icon at the end of each suggested-competitor card's action row (and drop the now-unused `ExternalLink` import). The Teardown button stays; the YouTube-open shortcut goes away on those cards.
+- `src/lib/youtube.server.ts` already exports `getChannelByHandle`. We'll call it directly from `searchCompetitorByQuery` for the handle-candidate path so we don't depend on `searchChannelsByQuery` returning ids.
+- To re-throw quota from the search fallback without changing `searchChannelsByQuery` (which legitimately needs to swallow quota during bulk discovery), we'll call `searchChannelsByQuery` and, if it returns `[]` AND the cache for that query is empty, additionally try a direct `ytFetch`-like probe — simpler: add an internal flag-less variant by catching the error in a small inline `try` that calls a new tiny helper `searchChannelsByQueryStrict` exported from `youtube.server.ts` that does NOT swallow quota. Manual search re-throws so the user sees the real reason.
 
-The same `ExternalLink` buttons on the **watchlist** cards and on the **teardown** page are out of scope — only the suggested-competitor cards are touched.
-
-## Technical detail
-
-- New file additions: none. Edits only to `src/lib/discovery.functions.ts` (new server fn) and `src/routes/_authenticated/discover.tsx` (search UI + remove icon).
-- No DB schema changes; watchlist table already accepts arbitrary `competitor_channel_id`.
-- Manual-search results live in a separate `useQuery` key (`["manual-search", query]`) so they don't disturb the existing suggested-competitor cache.
+No UI restructuring beyond the empty-state text. Watchlist/discovery flows are unchanged.

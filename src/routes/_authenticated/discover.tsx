@@ -139,7 +139,9 @@ function Discover() {
         {manualQ.data && (
           <div className="mt-4">
             {manualQ.data.results.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No channels found for "{manualQ.data.query}".</p>
+              <p className="text-sm text-muted-foreground">
+                No channels found for "{manualQ.data.query}". Tip: paste the channel URL or @handle (e.g. <code>@VjSiddhuVlog</code>) for an exact match.
+              </p>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {manualQ.data.results.map((c) => {

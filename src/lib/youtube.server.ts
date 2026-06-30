@@ -187,6 +187,22 @@ export async function searchChannelsByKeywords(keywords: string[], maxResults = 
   return searchChannelsByQuery(keywords.join(" "), maxResults);
 }
 
+// Strict variant: re-throws quota errors instead of swallowing them.
+// Use this from user-facing single-query flows so the UI can show a real message.
+export async function searchChannelsByQueryStrict(query: string, maxResults = 8, order: SearchOrder = "relevance"): Promise<string[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const pageSize = Math.min(50, Math.max(1, maxResults));
+  const key = `search:channels:${q.toLowerCase()}:${order}:${pageSize}:first`;
+  const data = await ytFetch<{ items: any[] }>(
+    "search",
+    { part: "snippet", type: "channel", q, maxResults: String(pageSize), relevanceLanguage: "en", order },
+    key,
+    1000 * 60 * 60 * 24 * 3,
+  );
+  return Array.from(new Set((data.items ?? []).map((i: any) => i.snippet?.channelId).filter(Boolean)));
+}
+
 export async function getChannelsBulk(ids: string[]): Promise<YtChannel[]> {
   if (!ids.length) return [];
   const out: YtChannel[] = [];

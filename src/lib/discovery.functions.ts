@@ -297,36 +297,61 @@ export const searchCompetitorByQuery = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ query: z.string().min(1).max(200) }).parse(d))
   .handler(async ({ data }) => {
-    const q = data.query.trim();
-    const { getChannelByHandleOrUrl, searchChannelsByQuery, getChannelsBulk } = await import("./youtube.server");
+    // Strip leading non-alphanumerics (stray quotes, @, whitespace) but keep inner chars.
+    const q = data.query.trim().replace(/^[^\p{L}\p{N}]+/u, "").trim();
+    if (!q) return { query: data.query, results: [] };
 
-    const looksLikeChannel = /youtube\.com|youtu\.be|^@|^UC[\w-]{20,}$/i.test(q);
-    let channels: Array<{ id: string; title: string; description: string; thumbnail: string; subscriberCount: number; viewCount: number }> = [];
+    const { getChannelByHandleOrUrl, getChannelByHandle, searchChannelsByQueryStrict, getChannelsBulk } =
+      await import("./youtube.server");
 
-    if (looksLikeChannel) {
+    const looksLikeUrlOrId = /youtube\.com|youtu\.be|^UC[\w-]{20,}$/i.test(q) || data.query.trim().startsWith("@");
+    const channelsMap = new Map<string, { id: string; title: string; description: string; thumbnail: string; subscriberCount: number; viewCount: number }>();
+
+    const quotaError = () =>
+      new Error("YouTube search quota is exhausted for today. Try pasting the channel URL or @handle instead.");
+
+    if (looksLikeUrlOrId) {
       try {
         const ch = await getChannelByHandleOrUrl(q);
-        if (ch) channels = [ch];
+        if (ch) channelsMap.set(ch.id, ch);
       } catch (e) {
-        if ((e as { isQuota?: boolean })?.isQuota) {
-          throw new Error("YouTube search quota is exhausted for today. Please try again in a few hours.");
-        }
+        if ((e as { isQuota?: boolean })?.isQuota) throw quotaError();
         throw e;
       }
     }
 
-    if (!channels.length) {
+    // Cheap handle-candidate lookup (channels.list?forHandle, 1 unit, separate from Search quota).
+    // Works for queries like "Vj Siddhu Vlogs" → handle "VjSiddhuVlogs".
+    const handleCandidate = q.replace(/\s+/g, "").replace(/[^\w.-]/g, "");
+    if (!channelsMap.size && handleCandidate.length >= 3 && handleCandidate.length <= 30) {
       try {
-        const ids = await searchChannelsByQuery(q, 8, "relevance");
-        if (ids.length) channels = await getChannelsBulk(ids);
+        const ch = await getChannelByHandle(handleCandidate);
+        if (ch) channelsMap.set(ch.id, ch);
       } catch (e) {
-        if ((e as { isQuota?: boolean })?.isQuota) {
-          throw new Error("YouTube search quota is exhausted for today. Please try again in a few hours.");
+        if (!(e as { isQuota?: boolean })?.isQuota) {
+          // Non-quota errors here are non-fatal — fall through to search.
         }
-        throw e;
       }
     }
 
+    // Search fallback (expensive, may be quota-blocked).
+    try {
+      const ids = await searchChannelsByQueryStrict(q, 8, "relevance");
+      const missing = ids.filter((id) => !channelsMap.has(id));
+      if (missing.length) {
+        const hydrated = await getChannelsBulk(missing);
+        for (const ch of hydrated) channelsMap.set(ch.id, ch);
+      }
+    } catch (e) {
+      if ((e as { isQuota?: boolean })?.isQuota) {
+        // If we already found something via handle path, return it; otherwise surface quota.
+        if (!channelsMap.size) throw quotaError();
+      } else {
+        if (!channelsMap.size) throw e;
+      }
+    }
+
+    const channels = Array.from(channelsMap.values());
     return {
       query: q,
       results: channels.slice(0, 8).map((c) => ({
