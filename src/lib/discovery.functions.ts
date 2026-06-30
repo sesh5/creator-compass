@@ -18,12 +18,9 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
 
     const userSubs = profile.subscriber_count ?? 0;
     let filtered = channels;
-    if (userSubs === 0) {
-      // No channel yet → show established-but-achievable peers (100K–1M)
-      filtered = channels.filter((c) => c.subscriberCount >= 100_000 && c.subscriberCount <= 1_000_000);
-    } else if (userSubs < 1_000) {
-      // Tiny channel → 100K–1M still the sweet spot to learn from
-      filtered = channels.filter((c) => c.subscriberCount >= 100_000 && c.subscriberCount <= 1_000_000);
+    if (userSubs < 1_000) {
+      // New or tiny channel → widen to 50K–2M for more achievable peers
+      filtered = channels.filter((c) => c.subscriberCount >= 50_000 && c.subscriberCount <= 2_000_000);
     } else {
       const lo = Math.max(50, userSubs * 1.5);
       const hi = Math.max(userSubs * 8, 50_000);
