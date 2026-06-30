@@ -4,7 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Compass, FileText, Trophy, LogOut, Menu, X, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getMyProfile } from "@/lib/profile.functions";
+import { SubsEditor } from "@/components/SubsEditor";
 
 const nav = [
   { to: "/discover", label: "Discover", icon: Compass },

@@ -60,3 +60,18 @@ export const getMyProfile = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return data;
   });
+
+export const updateSubscriberCount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ subscriber_count: z.number().int().min(0).max(100_000_000) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ subscriber_count: data.subscriber_count })
+      .eq("id", userId);
+    if (error) throw new Error(error.message);
+    return { ok: true, subscriber_count: data.subscriber_count };
+  });
