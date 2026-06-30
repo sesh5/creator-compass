@@ -89,8 +89,8 @@ function Discover() {
                 <SubsEditor subs={profile.subscriber_count} variant="link" />
               </div>
             ) : null}
-            <Button onClick={() => discoverMut.mutate()} disabled={discoverMut.isPending} className="brand-gradient border-0">
-              {discoverMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Searching</> : <><Compass className="w-4 h-4 mr-2" />Find competitors</>}
+            <Button onClick={() => discoverQ.refetch()} disabled={isSearching} className="brand-gradient border-0">
+              {isSearching ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Searching</> : <><Compass className="w-4 h-4 mr-2" />Find competitors</>}
             </Button>
           </div>
         }
