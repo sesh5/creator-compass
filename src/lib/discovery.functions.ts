@@ -70,19 +70,30 @@ function buildSearchQueries(keywords: string[]): string[] {
   if (phrase) queries.add(phrase);
   for (const keyword of keywords) {
     const cleaned = keyword.replace(/\s+/g, " ").trim();
-    if (cleaned) queries.add(cleaned);
+    if (cleaned) {
+      queries.add(cleaned);
+      queries.add(`${cleaned} channel`);
+      queries.add(`${cleaned} tutorial`);
+    }
+  }
+  // Multi-word combos of distinct keywords
+  for (let i = 0; i < keywords.length; i++) {
+    for (let j = i + 1; j < keywords.length; j++) {
+      queries.add(`${keywords[i]} ${keywords[j]}`);
+    }
   }
   if (primary) {
     queries.add(primary);
     queries.add(`${primary} channel`);
     queries.add(`${primary} creator`);
+    queries.add(`${primary} youtuber`);
     if (/vlog|vlogs|blog|blogs/i.test(phrase)) {
       queries.add(`${primary} vlog`);
       queries.add(`${primary} vlogger`);
     }
   }
 
-  return Array.from(queries).slice(0, 8);
+  return Array.from(queries).slice(0, 14);
 }
 
 type AiVerdict = { on_niche: boolean; niche_tag: string; why_watch: string };
