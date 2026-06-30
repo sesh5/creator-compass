@@ -109,7 +109,39 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
     const keywords: string[] = project.niche_keywords ?? [];
     if (!keywords.length) throw new Error("Add at least one niche keyword to this project.");
 
-    const queries = buildSearchQueries(keywords);
+    const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
+    const { generateText } = await import("ai");
+    const key = process.env.LOVABLE_API_KEY;
+
+    // Semantic query expansion: surface channels whose titles don't literally
+    // contain the niche keywords (e.g. creator-name channels posting AI content).
+    let semanticQueries: string[] = [];
+    if (key) {
+      try {
+        const ai = createLovableAi(key);
+        const prompt = `You are a YouTube niche researcher. Niche keywords: ${keywords.join(", ")}.
+
+Brainstorm 15 YouTube search queries that would surface channels semantically in this niche, including:
+- adjacent sub-topics and tools used in this niche
+- names of well-known creators (first+last name or channel handles) who post in this niche
+- common channel-name patterns ("<name> AI", "<name> automation", etc.)
+- format/style keywords creators in this niche typically use
+
+Return STRICT minified JSON: {"queries":["q1","q2",...]} — no commentary.`;
+        const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) {
+          const parsed = JSON.parse(match[0]);
+          if (Array.isArray(parsed.queries)) {
+            semanticQueries = parsed.queries.filter((q: unknown): q is string => typeof q === "string" && q.length > 1).slice(0, 15);
+          }
+        }
+      } catch (e) {
+        console.error("semantic query expansion failed", e);
+      }
+    }
+
+    const queries = Array.from(new Set([...buildSearchQueries(keywords), ...semanticQueries])).slice(0, 28);
     const searches = queries.flatMap((query) => [
       searchChannelsByQuery(query, 50, "relevance"),
       searchChannelsByQuery(query, 50, "viewCount"),
@@ -126,11 +158,9 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
       (c) => c.id !== project.channel_id && c.subscriberCount >= band.lo && c.subscriberCount <= band.hi,
     );
 
-    const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
-    const { generateText } = await import("ai");
-    const key = process.env.LOVABLE_API_KEY;
     let aiVerdict: Record<string, AiVerdict> = {};
     let aiAvailable = false;
+
 
     // When AI is available we let it judge fit (titles/descriptions don't always
     // contain literal keywords, e.g. "Nate Herk | AI Automation"). When AI is
