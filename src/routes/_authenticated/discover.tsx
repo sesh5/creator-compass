@@ -126,7 +126,7 @@ function Discover() {
         </section>
       )}
 
-      {!competitors && !discoverMut.isPending && (
+      {!competitors && !isSearching && (
         <EmptyState
           icon={<Compass className="w-5 h-5 text-primary-foreground" />}
           title="Let's find your peers"
