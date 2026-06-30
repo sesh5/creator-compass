@@ -138,7 +138,7 @@ export const updateProject = createServerFn({ method: "POST" })
       }
     }
 
-    const { error } = await supabase.from("projects").update(updates).eq("id", id).eq("user_id", userId);
+    const { error } = await supabase.from("projects").update(updates as any).eq("id", id).eq("user_id", userId);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

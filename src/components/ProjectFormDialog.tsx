@@ -57,8 +57,8 @@ export function ProjectFormDialog({
     }
   }, [open, existing]);
 
-  const mut = useMutation({
-    mutationFn: () => {
+  const mut = useMutation<any, Error, void>({
+    mutationFn: async () => {
       const subs = subCount.trim() === "" ? null : Math.max(0, Math.floor(Number(subCount.replace(/,/g, "")) || 0));
       if (isEdit) {
         return updateFn({
