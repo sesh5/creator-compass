@@ -200,17 +200,8 @@ function Discover() {
                           <Sparkles className="w-3 h-3 mr-1" /> Teardown
                         </Button>
                       </Link>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="ml-auto"
-                        onClick={() => window.open(`https://www.youtube.com/channel/${c.channel_id}`, "_blank", "noopener,noreferrer")}
-                        aria-label="Open on YouTube"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </Button>
-
                     </div>
+
                   </div>
                 );
               })}
