@@ -16,6 +16,7 @@ export type IdeaAnalysis = {
   demand: string;
   difficulty: string;
   audience: string;
+  angle?: string;
 };
 
 const IdeaInput = z.object({
