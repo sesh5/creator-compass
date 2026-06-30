@@ -158,11 +158,9 @@ Return STRICT minified JSON: {"queries":["q1","q2",...]} — no commentary.`;
       (c) => c.id !== project.channel_id && c.subscriberCount >= band.lo && c.subscriberCount <= band.hi,
     );
 
-    const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
-    const { generateText } = await import("ai");
-    const key = process.env.LOVABLE_API_KEY;
     let aiVerdict: Record<string, AiVerdict> = {};
     let aiAvailable = false;
+
 
     // When AI is available we let it judge fit (titles/descriptions don't always
     // contain literal keywords, e.g. "Nate Herk | AI Automation"). When AI is
