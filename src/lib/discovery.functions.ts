@@ -4,11 +4,11 @@ import { z } from "zod";
 import { getActiveProject } from "./projects.functions";
 
 export function pickPeerBand(userSubs: number): { lo: number; hi: number; coreLo: number; coreHi: number; label: string } {
-  if (userSubs < 1_000) return { lo: 10_000, hi: 100_000, coreLo: 10_000, coreHi: 100_000, label: "Starter peers (10K–100K)" };
+  if (userSubs < 1_000) return { lo: 5_000, hi: 200_000, coreLo: 10_000, coreHi: 100_000, label: "Starter peers (10K–100K)" };
   const coreLo = userSubs * 2;
   const coreHi = userSubs * 5;
-  const lo = Math.floor(userSubs * 1.75);
-  const hi = Math.ceil(userSubs * 6);
+  const lo = Math.floor(userSubs * 0.5);
+  const hi = Math.ceil(userSubs * 8);
   return { lo, hi, coreLo, coreHi, label: `${formatK(coreLo)}–${formatK(coreHi)} core · ${formatK(lo)}–${formatK(hi)} ladder` };
 }
 
@@ -70,19 +70,30 @@ function buildSearchQueries(keywords: string[]): string[] {
   if (phrase) queries.add(phrase);
   for (const keyword of keywords) {
     const cleaned = keyword.replace(/\s+/g, " ").trim();
-    if (cleaned) queries.add(cleaned);
+    if (cleaned) {
+      queries.add(cleaned);
+      queries.add(`${cleaned} channel`);
+      queries.add(`${cleaned} tutorial`);
+    }
+  }
+  // Multi-word combos of distinct keywords
+  for (let i = 0; i < keywords.length; i++) {
+    for (let j = i + 1; j < keywords.length; j++) {
+      queries.add(`${keywords[i]} ${keywords[j]}`);
+    }
   }
   if (primary) {
     queries.add(primary);
     queries.add(`${primary} channel`);
     queries.add(`${primary} creator`);
+    queries.add(`${primary} youtuber`);
     if (/vlog|vlogs|blog|blogs/i.test(phrase)) {
       queries.add(`${primary} vlog`);
       queries.add(`${primary} vlogger`);
     }
   }
 
-  return Array.from(queries).slice(0, 8);
+  return Array.from(queries).slice(0, 14);
 }
 
 type AiVerdict = { on_niche: boolean; niche_tag: string; why_watch: string };
@@ -100,8 +111,9 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
 
     const queries = buildSearchQueries(keywords);
     const searches = queries.flatMap((query) => [
-      searchChannelsByQuery(query, 150, "relevance"),
-      searchChannelsByQuery(query, 100, "viewCount"),
+      searchChannelsByQuery(query, 50, "relevance"),
+      searchChannelsByQuery(query, 50, "viewCount"),
+      searchChannelsByQuery(query, 50, "date"),
     ]);
     const searchResults = await Promise.all(searches);
     const allIds = Array.from(new Set(searchResults.flat()));
@@ -114,25 +126,39 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
       (c) => c.id !== project.channel_id && c.subscriberCount >= band.lo && c.subscriberCount <= band.hi,
     );
 
-    const keywordSurvivors = inBand.filter((c) =>
-      passesKeywordGate(`${c.title} ${c.description}`, keywords),
-    );
-
-    const candidates = keywordSurvivors;
-
     const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
     const { generateText } = await import("ai");
     const key = process.env.LOVABLE_API_KEY;
     let aiVerdict: Record<string, AiVerdict> = {};
     let aiAvailable = false;
+
+    // When AI is available we let it judge fit (titles/descriptions don't always
+    // contain literal keywords, e.g. "Nate Herk | AI Automation"). When AI is
+    // unavailable, fall back to the strict keyword regex gate.
+    const candidates = key
+      ? inBand
+      : inBand.filter((c) => passesKeywordGate(`${c.title} ${c.description}`, keywords));
+
     if (key && candidates.length) {
       try {
         const ai = createLovableAi(key);
-        for (let i = 0; i < candidates.length; i += 35) {
-          const batch = candidates.slice(i, i + 35);
-          const prompt = `You are a strict niche classifier for a YouTube creator.\nCreator's niche keywords: ${keywords.join(", ")}.\nCreator's current subs: ${userSubs}.\n\nFor EACH channel below, decide if it is genuinely IN the creator's niche (same primary topic, format, and audience). Be strict — a travel vlog creator should NOT match cooking, ASMR, gaming, camping gear, or unrelated lifestyle channels just because a word overlaps.\n\nReturn STRICT JSON keyed by channel id:\n{"<id>": {"on_niche": true|false, "niche_tag": "<2-3 word niche tag>", "why_watch": "<one sentence (<=18 words) explaining what's notable>"}}\n\nChannels:\n${batch
-            .map((c) => `- id=${c.id} | ${c.title} | subs=${c.subscriberCount} | views=${c.viewCount} | desc=${(c.description || "").slice(0, 260)}`)
-            .join("\n")}\n\nReturn ONLY the JSON object, no commentary.`;
+        for (let i = 0; i < candidates.length; i += 30) {
+          const batch = candidates.slice(i, i + 30);
+          const prompt = `You are a strict niche classifier for a YouTube creator.
+Creator's niche keywords: ${keywords.join(", ")}.
+Creator's current subs: ${userSubs}.
+
+For EACH channel below, decide if it is genuinely IN the creator's niche — same primary topic, format, and audience. A creator-name channel that consistently makes content about "${keywords.join(", ")}" IS on-niche even if those exact words are not in the channel title (e.g. for "AI automation" niche: "Nate Herk | AI Automation", "Cole Medin", "Matt Wolfe" are on-niche). Do NOT mark unrelated channels on-niche just because one word overlaps (e.g. generic tech news, gaming, ASMR).
+
+Return STRICT minified JSON keyed by channel id:
+{"<id>":{"on_niche":true|false,"niche_tag":"<2-3 word niche tag>","why_watch":"<one sentence (<=18 words) on what's notable>"}}
+
+Channels:
+${batch
+            .map((c) => `- id=${c.id} | ${c.title} | subs=${c.subscriberCount} | views=${c.viewCount} | desc=${(c.description || "").slice(0, 280)}`)
+            .join("\n")}
+
+Return ONLY the JSON object, no commentary.`;
           const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
           const match = text.match(/\{[\s\S]*\}/);
           if (match) {
@@ -149,7 +175,7 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
       ? candidates.filter((c) => aiVerdict[c.id]?.on_niche === true)
       : candidates;
 
-    const ranked = rankCandidates(onNiche);
+    const ranked = rankCandidates(onNiche).slice(0, 12);
 
     return {
       band_label: band.label,

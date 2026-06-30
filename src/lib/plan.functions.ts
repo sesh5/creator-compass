@@ -16,6 +16,7 @@ export type IdeaAnalysis = {
   demand: string;
   difficulty: string;
   audience: string;
+  angle?: string;
 };
 
 const IdeaInput = z.object({
@@ -33,46 +34,56 @@ export const generateConceptsFromIdea = createServerFn({ method: "POST" })
     const keywords: string[] = project.niche_keywords ?? [];
     if (!keywords.length) throw new Error("Add niche keywords to this project first.");
 
-    const { data: watch } = await supabase.from("watchlist").select("*").eq("project_id", project.id).limit(10);
+    const { data: watch } = await supabase.from("watchlist").select("*").eq("project_id", project.id).limit(8);
     const competitorIds = (watch ?? []).map((w: any) => w.competitor_channel_id);
     let cached: any[] = [];
     if (competitorIds.length) {
       const { data } = await supabase.from("cached_research").select("*").in("channel_id", competitorIds);
       cached = data ?? [];
     }
-    const outlierSummary = cached
-      .flatMap((c) =>
-        (c.outlier_videos_json as any[] | null)?.slice(0, 3).map((v) => `- "${v.title}" (${v.views} views, ${v.outlier_score}x) on ${c.channel_name}`) ?? [],
-      )
+    const competitorSummary = cached
+      .map((c) => {
+        const outliers = (c.outlier_videos_json as any[] | null)?.slice(0, 5) ?? [];
+        const lines = outliers
+          .map((v) => `    • "${v.title}" — ${v.views?.toLocaleString?.() ?? v.views} views (${v.outlier_score}x)`)
+          .join("\n");
+        return `  - ${c.channel_name} (${c.subscriber_count?.toLocaleString?.() ?? "?"} subs):\n${lines || "    (no outliers cached)"}`;
+      })
       .join("\n");
 
     const count = data.count ?? 3;
-    const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
+    const { createLovableAi } = await import("./ai-gateway.server");
     const { generateText } = await import("ai");
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
     const ai = createLovableAi(apiKey);
 
-    const prompt = `You are a YouTube growth coach for a small creator.
-Niche keywords (HARD constraint — every concept must stay strictly within this niche): ${keywords.join(", ")}
-Goal: ${project.goal ?? "growth"}
-Channel size: ${project.subscriber_count?.toLocaleString() ?? "0"} subs.
+    const prompt = `You are a senior YouTube growth strategist working 1:1 with a creator. Be specific, not generic.
 
-The creator pitched THIS idea:
+Creator context:
+- Niche keywords (HARD constraint — every concept must stay strictly within this niche): ${keywords.join(", ")}
+- Channel size: ${project.subscriber_count?.toLocaleString() ?? "0"} subs
+- Goal: ${project.goal ?? "growth"}
+
+What is ACTUALLY outperforming in their niche right now (competitor outlier videos):
+${competitorSummary || "(no competitor data cached yet — use deep knowledge of this exact niche, name real channels/videos you know to be working)"}
+
+The creator pitched THIS idea (verbatim):
 """${data.idea}"""
 
-What is outperforming in their niche right now:
-${outlierSummary || "(no competitor data yet — use your knowledge of the niche)"}
+Your job:
+1. Decide niche fit honestly. If OFF-NICHE (e.g. cooking pitched by a travel creator), set analysis.fit to explain why, return concepts: [].
+2. Otherwise, do a real strategic analysis — not generic advice. Reference specific competitor outliers above when you can. Identify the non-obvious angle.
+3. Produce EXACTLY ${count} concepts that reframe the pitch through a DIFFERENTIATED angle. Each concept MUST:
+   - Name 1-2 specific competitor videos (from the list above, or real videos you know in this niche) it builds on, in why_now.
+   - Use a hook that's specific and concrete — NEVER generic phrases like "Top 5...", "Ultimate guide to...", "Everything you need to know about...", "The complete...", "Why X is the best".
+   - Have a sharp, contrarian or insight-driven angle, not the obvious take everyone else is doing.
+   - Be makeable solo with no big budget.
 
-Tasks:
-1. Analyze the idea in their niche context. Be honest about whether it will gain subscribers.
-2. If the idea is OFF-NICHE (e.g. cooking pitch from a travel creator), set analysis.fit to explain why it won't work for THEIR niche and return concepts: [].
-3. Otherwise produce EXACTLY ${count} video concepts that reframe the idea through their niche.
+Return ONLY strict minified JSON, no markdown, exact shape:
+{"analysis":{"fit":"1-2 sentences on niche fit","demand":"1 sentence with specifics on search/audience demand for THIS pitch","difficulty":"1 sentence on production effort","audience":"1 sentence on exactly who watches this","angle":"1 sentence: the specific differentiated angle you're taking vs the obvious take"},"concepts":[{"hook":"1-sentence hook (specific, no generic phrasing)","titles":["t1","t2","t3"],"thumbnail_brief":"what to show + overlay text","target_keyword":"primary keyword","why_now":"1 sentence naming 1-2 specific competitor videos this builds on"}]}`;
 
-Return ONLY strict minified JSON of this exact shape, no markdown:
-{"analysis":{"fit":"1-2 sentences on niche fit","demand":"1 sentence on search/audience demand","difficulty":"1 sentence on production effort solo","audience":"1 sentence on who watches this"},"concepts":[{"hook":"1-sentence hook","titles":["t1","t2","t3"],"thumbnail_brief":"what to show + overlay text","target_keyword":"primary keyword","why_now":"1 sentence"}]}`;
-
-    const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
+    const { text } = await generateText({ model: ai("google/gemini-3.1-pro-preview"), prompt });
     const m = text.match(/\{[\s\S]*\}/);
     if (!m) throw new Error("AI returned no JSON");
     const parsed = JSON.parse(m[0]) as { analysis: IdeaAnalysis; concepts: Concept[] };

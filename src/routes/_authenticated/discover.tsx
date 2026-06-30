@@ -32,10 +32,18 @@ function Discover() {
   const { data: watchlist, refetch: refetchWatch } = useQuery({ queryKey: ["watchlist"], queryFn: () => watchFn() });
   const watchedIds = new Set((watchlist ?? []).map((w) => w.competitor_channel_id));
 
-  const discoverMut = useMutation({
-    mutationFn: () => discoverFn(),
-    onError: (e: any) => toast.error(e?.message ?? "Discovery failed"),
+  const activeProjectId = (profile as any)?.active_project?.id ?? null;
+  const discoverQ = useQuery({
+    queryKey: ["discover-results", activeProjectId],
+    queryFn: () => discoverFn(),
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
   });
+  useEffect(() => {
+    if (discoverQ.error) toast.error((discoverQ.error as any)?.message ?? "Discovery failed");
+  }, [discoverQ.error]);
 
   const addMut = useMutation({
     mutationFn: (c: any) =>
@@ -58,8 +66,9 @@ function Discover() {
     onSuccess: () => refetchWatch(),
   });
 
-  const result = discoverMut.data;
-  const competitors = result?.competitors;
+  const result = discoverQ.data;
+  const competitors = result?.competitors as any[] | undefined;
+  const isSearching = discoverQ.isFetching;
 
   return (
     <div>
@@ -80,8 +89,8 @@ function Discover() {
                 <SubsEditor subs={profile.subscriber_count} variant="link" />
               </div>
             ) : null}
-            <Button onClick={() => discoverMut.mutate()} disabled={discoverMut.isPending} className="brand-gradient border-0">
-              {discoverMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Searching</> : <><Compass className="w-4 h-4 mr-2" />Find competitors</>}
+            <Button onClick={() => discoverQ.refetch()} disabled={isSearching} className="brand-gradient border-0">
+              {isSearching ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Searching</> : <><Compass className="w-4 h-4 mr-2" />Find competitors</>}
             </Button>
           </div>
         }
@@ -117,7 +126,7 @@ function Discover() {
         </section>
       )}
 
-      {!competitors && !discoverMut.isPending && (
+      {!competitors && !isSearching && (
         <EmptyState
           icon={<Compass className="w-5 h-5 text-primary-foreground" />}
           title="Let's find your peers"

@@ -31,6 +31,7 @@ export function ProjectSwitcher({
       qc.invalidateQueries({ queryKey: ["plan"] });
       qc.invalidateQueries({ queryKey: ["outcomes"] });
       qc.removeQueries({ queryKey: ["discover-results"] });
+      qc.removeQueries({ queryKey: ["idea-analysis"] });
       toast.success("Switched project");
     },
     onError: (e: any) => toast.error(e?.message ?? "Switch failed"),
