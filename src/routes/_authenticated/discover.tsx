@@ -66,8 +66,9 @@ function Discover() {
     onSuccess: () => refetchWatch(),
   });
 
-  const result = discoverMut.data;
-  const competitors = result?.competitors;
+  const result = discoverQ.data;
+  const competitors = result?.competitors as any[] | undefined;
+  const isSearching = discoverQ.isFetching;
 
   return (
     <div>
