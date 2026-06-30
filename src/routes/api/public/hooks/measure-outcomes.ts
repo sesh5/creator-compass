@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/public/hooks/measure-outcomes")({
         });
         const { data: rows } = await sb
           .from("concept_outcomes")
-          .select("id,user_id,video_id,subs_gained")
+          .select("id,user_id,project_id,video_id,subs_gained")
           .in("status", ["made", "measured"])
           .not("video_id", "is", null);
 
@@ -24,16 +24,17 @@ export const Route = createFileRoute("/api/public/hooks/measure-outcomes")({
 
         const { getVideoById, getChannelById } = await import("@/lib/youtube.server");
 
-        // Map per-user current subs once
-        const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
-        const { data: profiles } = await sb
-          .from("profiles")
+        // Pull current subs per project (its channel_id, not the profile's).
+        const projectIds = Array.from(new Set(rows.map((r: any) => r.project_id).filter(Boolean)));
+        const { data: projects } = await sb
+          .from("projects")
           .select("id, channel_id, subscriber_count")
-          .in("id", userIds);
-        const subsByUser = new Map<string, number>();
-        const baselineByUser = new Map<string, number>();
-        for (const p of profiles ?? []) {
-          baselineByUser.set(p.id, p.subscriber_count ?? 0);
+          .in("id", projectIds);
+
+        const subsByProject = new Map<string, number>();
+        const baselineByProject = new Map<string, number>();
+        for (const p of (projects ?? []) as any[]) {
+          baselineByProject.set(p.id, p.subscriber_count ?? 0);
           let current = p.subscriber_count ?? 0;
           if (p.channel_id) {
             try {
@@ -41,17 +42,17 @@ export const Route = createFileRoute("/api/public/hooks/measure-outcomes")({
               if (ch) current = ch.subscriberCount;
             } catch {}
           }
-          subsByUser.set(p.id, current);
+          subsByProject.set(p.id, current);
         }
 
         let measured = 0;
-        for (const r of rows) {
-          if (!r.video_id) continue;
+        for (const r of rows as any[]) {
+          if (!r.video_id || !r.project_id) continue;
           try {
             const v = await getVideoById(r.video_id);
             if (!v) continue;
-            const subs = subsByUser.get(r.user_id) ?? 0;
-            const baseline = baselineByUser.get(r.user_id) ?? subs;
+            const subs = subsByProject.get(r.project_id) ?? 0;
+            const baseline = baselineByProject.get(r.project_id) ?? subs;
             const outlier = subs > 0 ? Number((v.viewCount / Math.max(1, subs)).toFixed(2)) : null;
             await sb
               .from("concept_outcomes")
@@ -69,9 +70,9 @@ export const Route = createFileRoute("/api/public/hooks/measure-outcomes")({
           }
         }
 
-        // refresh profile subscriber counts
-        for (const [uid, subs] of subsByUser.entries()) {
-          await sb.from("profiles").update({ subscriber_count: subs }).eq("id", uid);
+        // Refresh stored subscriber counts on each project
+        for (const [pid, subs] of subsByProject.entries()) {
+          await sb.from("projects").update({ subscriber_count: subs }).eq("id", pid);
         }
 
         return Response.json({ measured });

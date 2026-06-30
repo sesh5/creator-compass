@@ -19,6 +19,7 @@ export type Database = {
           comparison_json: Json | null
           created_at: string
           id: string
+          project_id: string
           target_channel_id: string
           target_videos_json: Json | null
           user_id: string
@@ -29,6 +30,7 @@ export type Database = {
           comparison_json?: Json | null
           created_at?: string
           id?: string
+          project_id: string
           target_channel_id: string
           target_videos_json?: Json | null
           user_id: string
@@ -39,13 +41,22 @@ export type Database = {
           comparison_json?: Json | null
           created_at?: string
           id?: string
+          project_id?: string
           target_channel_id?: string
           target_videos_json?: Json | null
           user_id?: string
           user_videos_json?: Json | null
           week_start?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "benchmark_snapshots_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       benchmark_targets: {
         Row: {
@@ -53,6 +64,7 @@ export type Database = {
           channel_id: string
           channel_name: string
           id: string
+          project_id: string
           user_id: string
         }
         Insert: {
@@ -60,6 +72,7 @@ export type Database = {
           channel_id: string
           channel_name: string
           id?: string
+          project_id: string
           user_id: string
         }
         Update: {
@@ -67,9 +80,18 @@ export type Database = {
           channel_id?: string
           channel_name?: string
           id?: string
+          project_id?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "benchmark_targets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cached_research: {
         Row: {
@@ -112,6 +134,7 @@ export type Database = {
           measured_at: string | null
           niche_keywords: string[] | null
           outlier_score: number | null
+          project_id: string
           status: string
           subs_gained: number | null
           updated_at: string
@@ -130,6 +153,7 @@ export type Database = {
           measured_at?: string | null
           niche_keywords?: string[] | null
           outlier_score?: number | null
+          project_id: string
           status?: string
           subs_gained?: number | null
           updated_at?: string
@@ -148,6 +172,7 @@ export type Database = {
           measured_at?: string | null
           niche_keywords?: string[] | null
           outlier_score?: number | null
+          project_id?: string
           status?: string
           subs_gained?: number | null
           updated_at?: string
@@ -164,6 +189,13 @@ export type Database = {
             referencedRelation: "content_plans"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "concept_outcomes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       content_plans: {
@@ -171,6 +203,7 @@ export type Database = {
           concepts_json: Json
           created_at: string
           id: string
+          project_id: string
           source_competitors: string[] | null
           user_id: string
         }
@@ -178,6 +211,7 @@ export type Database = {
           concepts_json: Json
           created_at?: string
           id?: string
+          project_id: string
           source_competitors?: string[] | null
           user_id: string
         }
@@ -185,13 +219,23 @@ export type Database = {
           concepts_json?: Json
           created_at?: string
           id?: string
+          project_id?: string
           source_competitors?: string[] | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "content_plans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
+          active_project_id: string | null
           channel_id: string | null
           channel_title: string | null
           channel_url: string | null
@@ -205,6 +249,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          active_project_id?: string | null
           channel_id?: string | null
           channel_title?: string | null
           channel_url?: string | null
@@ -218,6 +263,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          active_project_id?: string | null
           channel_id?: string | null
           channel_title?: string | null
           channel_url?: string | null
@@ -229,6 +275,59 @@ export type Database = {
           onboarded?: boolean
           subscriber_count?: number | null
           updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_active_project_id_fkey"
+            columns: ["active_project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          channel_id: string | null
+          channel_title: string | null
+          channel_url: string | null
+          created_at: string
+          goal: string
+          id: string
+          is_default: boolean
+          name: string
+          niche_keywords: string[]
+          subscriber_count: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id?: string | null
+          channel_title?: string | null
+          channel_url?: string | null
+          created_at?: string
+          goal?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          niche_keywords?: string[]
+          subscriber_count?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string | null
+          channel_title?: string | null
+          channel_url?: string | null
+          created_at?: string
+          goal?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          niche_keywords?: string[]
+          subscriber_count?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -237,6 +336,7 @@ export type Database = {
           created_at: string
           id: string
           input_title: string
+          project_id: string
           suggestions_json: Json
           user_id: string
         }
@@ -244,6 +344,7 @@ export type Database = {
           created_at?: string
           id?: string
           input_title: string
+          project_id: string
           suggestions_json: Json
           user_id: string
         }
@@ -251,10 +352,19 @@ export type Database = {
           created_at?: string
           id?: string
           input_title?: string
+          project_id?: string
           suggestions_json?: Json
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "title_lab_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       watchlist: {
         Row: {
@@ -263,6 +373,7 @@ export type Database = {
           competitor_channel_id: string
           id: string
           niche_tag: string | null
+          project_id: string
           subscriber_count: number | null
           thumbnail_url: string | null
           user_id: string
@@ -274,6 +385,7 @@ export type Database = {
           competitor_channel_id: string
           id?: string
           niche_tag?: string | null
+          project_id: string
           subscriber_count?: number | null
           thumbnail_url?: string | null
           user_id: string
@@ -285,12 +397,21 @@ export type Database = {
           competitor_channel_id?: string
           id?: string
           niche_tag?: string | null
+          project_id?: string
           subscriber_count?: number | null
           thumbnail_url?: string | null
           user_id?: string
           why_watch?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "watchlist_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       youtube_api_cache: {
         Row: {

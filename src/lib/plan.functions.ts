@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { getActiveProject } from "./projects.functions";
 
 export type Concept = {
   hook: string;
@@ -27,13 +28,13 @@ export const generateConceptsFromIdea = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => IdeaInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-    if (!profile) throw new Error("Profile not found");
-    const keywords: string[] = profile.niche_keywords ?? [];
-    if (!keywords.length) throw new Error("Add niche keywords in onboarding first.");
+    const project = await getActiveProject(supabase, userId);
+    if (!project) throw new Error("Create a project first.");
+    const keywords: string[] = project.niche_keywords ?? [];
+    if (!keywords.length) throw new Error("Add niche keywords to this project first.");
 
-    const { data: watch } = await supabase.from("watchlist").select("*").eq("user_id", userId).limit(10);
-    const competitorIds = (watch ?? []).map((w) => w.competitor_channel_id);
+    const { data: watch } = await supabase.from("watchlist").select("*").eq("project_id", project.id).limit(10);
+    const competitorIds = (watch ?? []).map((w: any) => w.competitor_channel_id);
     let cached: any[] = [];
     if (competitorIds.length) {
       const { data } = await supabase.from("cached_research").select("*").in("channel_id", competitorIds);
@@ -54,8 +55,8 @@ export const generateConceptsFromIdea = createServerFn({ method: "POST" })
 
     const prompt = `You are a YouTube growth coach for a small creator.
 Niche keywords (HARD constraint — every concept must stay strictly within this niche): ${keywords.join(", ")}
-Goal: ${profile.goal ?? "growth"}
-Channel size: ${profile.subscriber_count?.toLocaleString() ?? "0"} subs.
+Goal: ${project.goal ?? "growth"}
+Channel size: ${project.subscriber_count?.toLocaleString() ?? "0"} subs.
 
 The creator pitched THIS idea:
 """${data.idea}"""
@@ -82,20 +83,16 @@ export const generatePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-    if (!profile) throw new Error("Profile not found");
-    const keywords: string[] = profile.niche_keywords ?? [];
-    if (!keywords.length) throw new Error("Add niche keywords in onboarding first.");
+    const project = await getActiveProject(supabase, userId);
+    if (!project) throw new Error("Create a project first.");
+    const keywords: string[] = project.niche_keywords ?? [];
+    if (!keywords.length) throw new Error("Add niche keywords to this project first.");
 
-    // Pull from watchlist + their cached teardowns/outliers
-    const { data: watch } = await supabase.from("watchlist").select("*").eq("user_id", userId).limit(10);
-    const competitorIds = (watch ?? []).map((w) => w.competitor_channel_id);
+    const { data: watch } = await supabase.from("watchlist").select("*").eq("project_id", project.id).limit(10);
+    const competitorIds = (watch ?? []).map((w: any) => w.competitor_channel_id);
     let cached: any[] = [];
     if (competitorIds.length) {
-      const { data } = await supabase
-        .from("cached_research")
-        .select("*")
-        .in("channel_id", competitorIds);
+      const { data } = await supabase.from("cached_research").select("*").in("channel_id", competitorIds);
       cached = data ?? [];
     }
 
@@ -111,7 +108,7 @@ export const generatePlan = createServerFn({ method: "POST" })
     if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
     const ai = createLovableAi(apiKey);
 
-    const prompt = `You are a YouTube growth coach for a small creator.\nNiche keywords: ${keywords.join(", ")}\nGoal: ${profile.goal ?? "growth"}\nTheir channel size: ${profile.subscriber_count?.toLocaleString() ?? "0"} subs.\n\nWhat is outperforming in their niche right now:\n${outlierSummary || "(no competitor data yet — use your knowledge of the niche)"}\n\nProduce EXACTLY 5 video concepts they should make this week. Each must be:\n- Achievable solo, no big budget\n- Tied to a pattern actually working in this niche\n- Worth the creator's time\n\nReturn ONLY strict minified JSON of this exact shape:\n{"concepts":[\n  {\n    "hook":"1-sentence hook the video opens with",\n    "titles":["title option 1","title option 2","title option 3"],\n    "thumbnail_brief":"What to show + overlay text (1-2 sentences)",\n    "target_keyword":"primary keyword they should target",\n    "why_now":"1 sentence on why this works now in their niche"\n  }\n]}\nNo markdown, no commentary.`;
+    const prompt = `You are a YouTube growth coach for a small creator.\nNiche keywords: ${keywords.join(", ")}\nGoal: ${project.goal ?? "growth"}\nTheir channel size: ${project.subscriber_count?.toLocaleString() ?? "0"} subs.\n\nWhat is outperforming in their niche right now:\n${outlierSummary || "(no competitor data yet — use your knowledge of the niche)"}\n\nProduce EXACTLY 5 video concepts they should make this week. Each must be:\n- Achievable solo, no big budget\n- Tied to a pattern actually working in this niche\n- Worth the creator's time\n\nReturn ONLY strict minified JSON of this exact shape:\n{"concepts":[\n  {\n    "hook":"1-sentence hook the video opens with",\n    "titles":["title option 1","title option 2","title option 3"],\n    "thumbnail_brief":"What to show + overlay text (1-2 sentences)",\n    "target_keyword":"primary keyword they should target",\n    "why_now":"1 sentence on why this works now in their niche"\n  }\n]}\nNo markdown, no commentary.`;
 
     const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
     const m = text.match(/\{[\s\S]*\}/);
@@ -123,23 +120,24 @@ export const generatePlan = createServerFn({ method: "POST" })
       .from("content_plans")
       .insert({
         user_id: userId,
+        project_id: project.id,
         concepts_json: parsed.concepts as any,
         source_competitors: competitorIds,
-      })
+      } as any)
       .select()
       .single();
     if (error) throw new Error(error.message);
 
-    // Pre-create concept_outcomes (status=suggested)
     const rows = parsed.concepts.map((c, i) => ({
       user_id: userId,
+      project_id: project.id,
       content_plan_id: plan.id,
       concept_index: i,
       concept_snapshot: c as any,
       niche_keywords: keywords,
       status: "suggested" as const,
     }));
-    await supabase.from("concept_outcomes").insert(rows);
+    await supabase.from("concept_outcomes").insert(rows as any);
 
     return plan;
   });
@@ -148,9 +146,12 @@ export const getLatestPlan = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const project = await getActiveProject(supabase, userId);
+    if (!project) return null;
     const { data, error } = await supabase
       .from("content_plans")
       .select("*")
+      .eq("project_id", project.id)
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -190,9 +191,12 @@ export const getOutcomes = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const project = await getActiveProject(supabase, userId);
+    if (!project) return [];
     const { data, error } = await supabase
       .from("concept_outcomes")
       .select("*")
+      .eq("project_id", project.id)
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
@@ -203,30 +207,32 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const project = await getActiveProject(supabase, userId);
+    if (!project) return { measured: 0 };
     const { data: rows } = await supabase
       .from("concept_outcomes")
       .select("*")
+      .eq("project_id", project.id)
       .eq("user_id", userId)
       .in("status", ["made", "measured"]);
     if (!rows?.length) return { measured: 0 };
 
     const { getVideoById, getChannelById } = await import("./youtube.server");
-    const { data: profile } = await supabase.from("profiles").select("subscriber_count, channel_id").eq("id", userId).maybeSingle();
-    let currentSubs = profile?.subscriber_count ?? 0;
-    if (profile?.channel_id) {
+    let currentSubs = project.subscriber_count ?? 0;
+    if (project.channel_id) {
       try {
-        const refreshed = await getChannelById(profile.channel_id);
+        const refreshed = await getChannelById(project.channel_id);
         if (refreshed) currentSubs = refreshed.subscriberCount;
       } catch {}
     }
 
     let measured = 0;
-    for (const r of rows) {
+    for (const r of rows as any[]) {
       if (!r.video_id) continue;
       try {
         const v = await getVideoById(r.video_id);
         if (!v) continue;
-        const subsAtMade = r.subs_gained == null ? (profile?.subscriber_count ?? 0) : (r.subs_gained ?? 0);
+        const subsAtMade = r.subs_gained == null ? (project.subscriber_count ?? 0) : (r.subs_gained ?? 0);
         const outlier = currentSubs > 0 ? Number((v.viewCount / Math.max(1, currentSubs)).toFixed(2)) : null;
         await supabase
           .from("concept_outcomes")
@@ -243,8 +249,8 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
         console.error("measure failed", r.id, e);
       }
     }
-    if (profile?.channel_id && currentSubs !== profile.subscriber_count) {
-      await supabase.from("profiles").update({ subscriber_count: currentSubs }).eq("id", userId);
+    if (project.channel_id && currentSubs !== project.subscriber_count) {
+      await supabase.from("projects").update({ subscriber_count: currentSubs }).eq("id", project.id);
     }
     return { measured };
   });

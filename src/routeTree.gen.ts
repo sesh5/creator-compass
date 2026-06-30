@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedResultsRouteImport } from './routes/_authenticated/results'
+import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
 import { Route as AuthenticatedPlanRouteImport } from './routes/_authenticated/plan'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedDiscoverRouteImport } from './routes/_authenticated/discover'
@@ -36,6 +37,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedResultsRoute = AuthenticatedResultsRouteImport.update({
   id: '/results',
   path: '/results',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProjectsRoute = AuthenticatedProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPlanRoute = AuthenticatedPlanRouteImport.update({
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/discover': typeof AuthenticatedDiscoverRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/plan': typeof AuthenticatedPlanRoute
+  '/projects': typeof AuthenticatedProjectsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/teardown/$channelId': typeof AuthenticatedTeardownChannelIdRoute
   '/api/public/hooks/measure-outcomes': typeof ApiPublicHooksMeasureOutcomesRoute
@@ -82,6 +89,7 @@ export interface FileRoutesByTo {
   '/discover': typeof AuthenticatedDiscoverRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/plan': typeof AuthenticatedPlanRoute
+  '/projects': typeof AuthenticatedProjectsRoute
   '/results': typeof AuthenticatedResultsRoute
   '/teardown/$channelId': typeof AuthenticatedTeardownChannelIdRoute
   '/api/public/hooks/measure-outcomes': typeof ApiPublicHooksMeasureOutcomesRoute
@@ -94,6 +102,7 @@ export interface FileRoutesById {
   '/_authenticated/discover': typeof AuthenticatedDiscoverRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/plan': typeof AuthenticatedPlanRoute
+  '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/results': typeof AuthenticatedResultsRoute
   '/_authenticated/teardown/$channelId': typeof AuthenticatedTeardownChannelIdRoute
   '/api/public/hooks/measure-outcomes': typeof ApiPublicHooksMeasureOutcomesRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/onboarding'
     | '/plan'
+    | '/projects'
     | '/results'
     | '/teardown/$channelId'
     | '/api/public/hooks/measure-outcomes'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/discover'
     | '/onboarding'
     | '/plan'
+    | '/projects'
     | '/results'
     | '/teardown/$channelId'
     | '/api/public/hooks/measure-outcomes'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/_authenticated/discover'
     | '/_authenticated/onboarding'
     | '/_authenticated/plan'
+    | '/_authenticated/projects'
     | '/_authenticated/results'
     | '/_authenticated/teardown/$channelId'
     | '/api/public/hooks/measure-outcomes'
@@ -167,6 +179,13 @@ declare module '@tanstack/react-router' {
       path: '/results'
       fullPath: '/results'
       preLoaderRoute: typeof AuthenticatedResultsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/projects': {
+      id: '/_authenticated/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AuthenticatedProjectsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/plan': {
@@ -211,6 +230,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDiscoverRoute: typeof AuthenticatedDiscoverRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedPlanRoute: typeof AuthenticatedPlanRoute
+  AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
   AuthenticatedResultsRoute: typeof AuthenticatedResultsRoute
   AuthenticatedTeardownChannelIdRoute: typeof AuthenticatedTeardownChannelIdRoute
 }
@@ -219,6 +239,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDiscoverRoute: AuthenticatedDiscoverRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedPlanRoute: AuthenticatedPlanRoute,
+  AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
   AuthenticatedResultsRoute: AuthenticatedResultsRoute,
   AuthenticatedTeardownChannelIdRoute: AuthenticatedTeardownChannelIdRoute,
 }
@@ -235,13 +256,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

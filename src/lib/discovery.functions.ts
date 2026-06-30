@@ -1,10 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
+import { getActiveProject } from "./projects.functions";
 
 export function pickPeerBand(userSubs: number): { lo: number; hi: number; coreLo: number; coreHi: number; label: string } {
-  // Keep the 2x–5x core, but search the practical ladder around it so nearby
-  // peers like 177K and 600K for a 100K creator are not thrown away.
   if (userSubs < 1_000) return { lo: 10_000, hi: 100_000, coreLo: 10_000, coreHi: 100_000, label: "Starter peers (10K–100K)" };
   const coreLo = userSubs * 2;
   const coreHi = userSubs * 5;
@@ -42,7 +41,6 @@ function passesKeywordGate(text: string, keywords: string[]): boolean {
   return terms.some((kw) => {
     const k = kw.toLowerCase().trim();
     if (!k) return false;
-    // word-ish match: surrounded by non-letters or string ends
     const re = new RegExp(`(^|[^a-z0-9])${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`, "i");
     return re.test(haystack);
   });
@@ -93,14 +91,13 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
-    if (!profile) throw new Error("Profile not found");
+    const project = await getActiveProject(supabase, userId);
+    if (!project) throw new Error("Create a project first.");
 
     const { searchChannelsByQuery, getChannelsBulk } = await import("./youtube.server");
-    const keywords: string[] = profile.niche_keywords ?? [];
-    if (!keywords.length) throw new Error("Add at least one niche keyword first.");
+    const keywords: string[] = project.niche_keywords ?? [];
+    if (!keywords.length) throw new Error("Add at least one niche keyword to this project.");
 
-    // Search several niche-specific queries and multiple pages so we do not stop at one match.
     const queries = buildSearchQueries(keywords);
     const searches = queries.flatMap((query) => [
       searchChannelsByQuery(query, 150, "relevance"),
@@ -110,20 +107,17 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
     const allIds = Array.from(new Set(searchResults.flat()));
     const channels = await getChannelsBulk(allIds);
 
-    const userSubs = profile.subscriber_count ?? 0;
+    const userSubs = project.subscriber_count ?? 0;
     const band = pickPeerBand(userSubs);
 
-    // 1. Dynamic subscriber ladder filter.
     const inBand = channels.filter(
-      (c) => c.id !== profile.channel_id && c.subscriberCount >= band.lo && c.subscriberCount <= band.hi,
+      (c) => c.id !== project.channel_id && c.subscriberCount >= band.lo && c.subscriberCount <= band.hi,
     );
 
-    // 2. Layer A — keyword-presence gate on title + description
     const keywordSurvivors = inBand.filter((c) =>
       passesKeywordGate(`${c.title} ${c.description}`, keywords),
     );
 
-    // 3. Layer B — AI on-niche classifier + tagging in batches; no one-result cap.
     const candidates = keywordSurvivors;
 
     const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
@@ -151,8 +145,6 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
       }
     }
 
-    // When AI is available, only keep channels it explicitly marks on_niche.
-    // When AI fails, fall back to Layer A survivors (still strict on keyword presence).
     const onNiche = aiAvailable
       ? candidates.filter((c) => aiVerdict[c.id]?.on_niche === true)
       : candidates;
@@ -190,17 +182,20 @@ export const addToWatchlist = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => AddInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const project = await getActiveProject(supabase, userId);
+    if (!project) throw new Error("Create a project first.");
     const { error } = await supabase.from("watchlist").upsert(
       {
         user_id: userId,
+        project_id: project.id,
         competitor_channel_id: data.channel_id,
         channel_name: data.channel_name,
         subscriber_count: data.subscriber_count,
         thumbnail_url: data.thumbnail_url ?? null,
         niche_tag: data.niche_tag ?? null,
         why_watch: data.why_watch ?? null,
-      },
-      { onConflict: "user_id,competitor_channel_id" },
+      } as any,
+      { onConflict: "project_id,competitor_channel_id" },
     );
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -211,9 +206,12 @@ export const removeFromWatchlist = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ channel_id: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const project = await getActiveProject(supabase, userId);
+    if (!project) throw new Error("Create a project first.");
     const { error } = await supabase
       .from("watchlist")
       .delete()
+      .eq("project_id", project.id)
       .eq("user_id", userId)
       .eq("competitor_channel_id", data.channel_id);
     if (error) throw new Error(error.message);
@@ -224,9 +222,12 @@ export const getWatchlist = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    const project = await getActiveProject(supabase, userId);
+    if (!project) return [];
     const { data, error } = await supabase
       .from("watchlist")
       .select("*")
+      .eq("project_id", project.id)
       .eq("user_id", userId)
       .order("added_at", { ascending: false });
     if (error) throw new Error(error.message);

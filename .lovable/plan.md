@@ -1,49 +1,90 @@
-## Add "Pitch your own idea" to the Plan page
+# Multi-niche projects
 
-Keep the existing auto-generated 5-concept plan exactly as is. Add a second box on `/plan` where the user types a place, topic, or rough idea, and the AI returns tailored video concepts shaped like the existing ones — so they can mix self-driven ideas with the auto plan.
+Right now, a user has exactly one niche stored on their profile, and every watchlist row, content plan, concept outcome, benchmark, and teardown is scoped only by `user_id`. We'll introduce a **Project** as the new scoping unit (one project = one niche + one channel context), let the user create and switch between projects, and scope all existing data to the active project.
 
-### 1. New server function — `src/lib/plan.functions.ts`
+## 1. Data model
 
-Add `generateConceptsFromIdea` (createServerFn, POST, `requireSupabaseAuth`):
-- Input (Zod): `{ idea: string (3–300 chars), count?: 1–5 default 3 }`.
-- Loads the user's profile (niche keywords, subscriber_count, goal) and their watchlist's cached outliers (same as `generatePlan`) so suggestions stay on-niche and sized to the creator.
-- Calls Lovable AI (`google/gemini-3-flash-preview`) with a prompt that:
-  - Anchors strictly to the user's niche keywords (travel stays travel — no cooking).
-  - Takes the user's idea (e.g. "Lisbon", "night trains in Europe", "solo female travel in Japan") as the seed.
-  - Returns JSON: `{ analysis: { fit, demand, difficulty, audience }, concepts: Concept[] }` where `Concept` matches the existing shape (`hook, titles[3], thumbnail_brief, target_keyword, why_now`).
-  - `analysis` is short, plain-language: will this gain subscribers in their niche? what angle works best? what to avoid?
-- Does NOT write to `content_plans` or `concept_outcomes` — these are exploratory suggestions. User can copy them or (future) promote into the plan.
-- Returns `{ analysis, concepts }` to the client.
+New table `public.projects`:
+- `id uuid pk`, `user_id uuid → auth.users`, `name text` (e.g. "Travel vlog", "Tech trends")
+- `channel_url`, `channel_id`, `channel_title`, `subscriber_count int`
+- `niche_keywords text[]`, `goal` (same enum as today)
+- `is_default bool`, `created_at`, `updated_at`
+- RLS: owner-only (user_id = auth.uid()). GRANT select/insert/update/delete to authenticated, all to service_role.
 
-### 2. UI — `src/routes/_authenticated/plan.tsx`
+Add `project_id uuid not null references public.projects(id) on delete cascade` to:
+- `watchlist`, `content_plans`, `concept_outcomes`, `benchmark_targets`, `benchmark_snapshots`, `cached_research`, `title_lab_runs`
 
-Add a new section above the existing plan list (or between header and list):
+Migration backfill:
+- For each existing profile with `onboarded = true`, insert one project named after their first niche keyword (or "My channel"), copy channel + niche fields, mark `is_default = true`.
+- Update existing rows in the tables above to point to that project.
+- Then set `project_id` NOT NULL and add indexes on `(user_id, project_id)`.
 
-```
-┌─ Pitch your own idea ────────────────────────────┐
-│ Textarea: "A place, topic, or angle you're       │
-│ thinking about (e.g. 'Lisbon food tour',         │
-│ 'night trains in Europe')"                       │
-│ [Slider 1–5 concepts]  [Analyze & suggest]       │
-└──────────────────────────────────────────────────┘
-```
+Profile keeps `id/email/onboarded` plus a new `active_project_id uuid` (nullable, references projects). Niche/channel fields stay on the profile for now (read-only legacy) but new code reads from the active project.
 
-After submit:
-- Show `analysis` as a small surface card (fit / demand / difficulty / best angle).
-- Render returned concepts using the **same `ConceptCard` visual** (no "I made this" footer, since they aren't tracked outcomes — pass an `outcome={undefined}` and hide the input block). Add a `<Copy>` button per concept (already present in `ConceptCard`).
+## 2. Server functions
 
-State: `useMutation` calling the new server fn; show loader, toast errors, keep last result visible until user submits again.
+New `src/lib/projects.functions.ts`:
+- `listProjects()` — returns user's projects + which is active.
+- `createProject({ name, channel_url?, subscriber_count?, niche_keywords, goal })` — runs the existing YouTube channel lookup (same logic as `completeOnboarding`), inserts row, sets it active.
+- `updateProject({ id, ...fields })` — rename, edit niche, edit subscriber count.
+- `deleteProject({ id })` — blocks deleting the last project.
+- `setActiveProject({ id })` — updates `profiles.active_project_id`.
 
-### 3. Minimal `ConceptCard` tweak
+Update every existing server fn that touches scoped tables to:
+- Resolve the active project (`profiles.active_project_id`, fall back to default), and
+- Filter / insert with `project_id` instead of just `user_id`.
 
-`ConceptCard` already hides the "I made this" block when `outcome` is undefined. Confirm and reuse as-is — no structural changes.
+Files touched: `discovery.functions.ts`, `plan.functions.ts`, `teardown.functions.ts`, `profile.functions.ts` (subs editor now writes to active project), `routes/api/public/hooks/measure-outcomes.ts` (scope by project_id stored on the outcome row).
 
-### Not changing
-- Auto-plan generation, outcomes, measurement, DB schema, discovery, onboarding.
-- `ConceptCard` shape (just reused with `outcome={undefined}`).
+`completeOnboarding` becomes "create first project + mark onboarded" — same UX, but it inserts a project row instead of writing niche fields onto the profile.
 
-### Technical notes
-- Niche enforcement mirrors the discovery niche gate: prompt explicitly instructs the model to refuse off-niche ideas and instead reframe the user's input through their niche keywords; if it can't, return `concepts: []` with an `analysis.fit` explanation.
-- AI JSON parsed defensively (regex extract `{…}`, `JSON.parse`, fallback error toast).
-- One AI call per submit. No new tables, no migrations.
-- Server fn lives next to `generatePlan` and reuses the same `Concept` type export.
+## 3. UI
+
+**Project switcher in `AppShell` header** (left of the SubsEditor pill):
+- Dropdown showing current project name + niche tag, list of other projects, "+ New project" item, "Manage projects" link.
+- Switching calls `setActiveProject` then `queryClient.invalidateQueries()` so Discover/Plan/Results/Teardown refetch under the new scope.
+- `SubsEditor` continues to show subs but now edits the active project's subscriber_count.
+
+**New route `/projects`** (`src/routes/_authenticated/projects.tsx`):
+- Card grid of projects: name, niche keywords, subs, channel title, "Set active / Active", "Edit", "Delete".
+- "Create new project" opens a modal reusing the onboarding form fields (channel URL optional, subs, niche keywords, goal).
+
+**Onboarding flow** stays the same visually, but on submit it creates the user's first project and sets it active.
+
+**Header nav** gets a small "Projects" link (or only in the dropdown footer to keep nav tight — TBD, default: in dropdown).
+
+**Discover / Plan / Results / Teardown**: no UI rewrites. They already read `profile.subscriber_count` / `profile.niche_keywords`; we swap those reads to come from the active project (returned alongside profile by `getMyProfile`, or via a new `getActiveProject` query).
+
+## 4. Niche enforcement stays per-project
+
+All existing strict-niche prompts (discovery niche-gate, plan generator, IdeaPitcher) keep working — they just read keywords from the active project instead of the profile. Switching projects gives a completely different competitor list, plan, and idea analysis.
+
+## 5. Not changing
+
+- `ConceptCard`, discovery ladder math (2x–5x), AI prompts (only the source of niche keywords changes), onboarding form fields, auth, RLS model for existing tables (just adds project_id scoping).
+- No cross-project sharing, no team members, no per-project theming.
+
+## Technical notes
+
+- One migration creates `projects`, backfills, adds `project_id` columns + FKs + indexes, sets `active_project_id` on profiles. Run table creation → GRANT → ALTER ENABLE RLS → policies, in that order.
+- `getMyProfile` returns `{ profile, activeProject, projects: [{id,name}] }` so the header can render the switcher without a second round-trip.
+- All scoped queries gain `.eq('project_id', activeProjectId)`; inserts include `project_id`.
+- `concept_outcomes` measurement webhook reads `project_id` from the outcome row itself — no caller change.
+- Deleting a project cascades watchlist/plans/outcomes/etc. Confirm dialog warns about this.
+
+## Files
+
+New:
+- `supabase/migrations/<ts>_projects.sql`
+- `src/lib/projects.functions.ts`
+- `src/components/ProjectSwitcher.tsx`
+- `src/components/ProjectFormDialog.tsx`
+- `src/routes/_authenticated/projects.tsx`
+
+Edited:
+- `src/components/AppShell.tsx` (mount switcher)
+- `src/components/SubsEditor.tsx` (write to active project)
+- `src/lib/profile.functions.ts` (return active project; onboarding creates project)
+- `src/lib/discovery.functions.ts`, `src/lib/plan.functions.ts`, `src/lib/teardown.functions.ts` (project scoping)
+- `src/routes/_authenticated/onboarding.tsx` (calls createProject under the hood)
+- `src/routes/api/public/hooks/measure-outcomes.ts` (uses outcome.project_id)
