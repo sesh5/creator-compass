@@ -24,6 +24,10 @@ function Discover() {
   const discoverFn = useServerFn(discoverCompetitors);
   const addFn = useServerFn(addToWatchlist);
   const removeFn = useServerFn(removeFromWatchlist);
+  const searchFn = useServerFn(searchCompetitorByQuery);
+  const [manualQuery, setManualQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+
 
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => profileFn() });
 
