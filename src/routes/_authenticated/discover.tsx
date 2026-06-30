@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader, EmptyState, formatNumber } from "@/components/Primitives";
 import { Compass, Loader2, Plus, Check, ExternalLink, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { SubsEditor } from "@/components/SubsEditor";
 
 export const Route = createFileRoute("/_authenticated/discover")({
   head: () => ({ meta: [{ title: "Discover competitors — CreatorArena" }, { name: "robots", content: "noindex" }] }),
@@ -57,7 +58,8 @@ function Discover() {
     onSuccess: () => refetchWatch(),
   });
 
-  const competitors = discoverMut.data;
+  const result = discoverMut.data;
+  const competitors = result?.competitors;
 
   return (
     <div>
@@ -65,16 +67,26 @@ function Discover() {
         eyebrow="Step 1"
         title="Who are your achievable peers?"
         description={
-          profile?.subscriber_count
-            ? `We'll find channels 2–8x your size (${formatNumber(profile.subscriber_count)} subs) so the benchmarks are real.`
-            : "We'll find achievable peers in your niche (50K–2M subs)."
+          result
+            ? `Showing peers in the ${result.band_label} range, ranked for ${formatNumber(result.user_subs)} subs.`
+            : profile?.subscriber_count
+              ? `We'll rank peers sized for ${formatNumber(profile.subscriber_count)} subs so the benchmarks are real.`
+              : "We'll find 10–15 achievable peers in your niche, ranked by reach and engagement."
         }
         action={
-          <Button onClick={() => discoverMut.mutate()} disabled={discoverMut.isPending} className="brand-gradient border-0">
-            {discoverMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Searching</> : <><Compass className="w-4 h-4 mr-2" />Find competitors</>}
-          </Button>
+          <div className="flex items-center gap-3">
+            {profile?.onboarded ? (
+              <div className="hidden md:block">
+                <SubsEditor subs={profile.subscriber_count} variant="link" />
+              </div>
+            ) : null}
+            <Button onClick={() => discoverMut.mutate()} disabled={discoverMut.isPending} className="brand-gradient border-0">
+              {discoverMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Searching</> : <><Compass className="w-4 h-4 mr-2" />Find competitors</>}
+            </Button>
+          </div>
         }
       />
+
 
       {watchlist && watchlist.length > 0 && (
         <section className="mb-10">
