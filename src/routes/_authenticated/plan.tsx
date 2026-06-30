@@ -57,6 +57,9 @@ function PlanPage() {
         }
       />
 
+      <IdeaPitcher />
+
+
       {!plan && !generateMut.isPending && (
         <EmptyState
           icon={<FileText className="w-5 h-5 text-primary-foreground" />}
