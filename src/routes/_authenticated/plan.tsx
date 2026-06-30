@@ -179,15 +179,24 @@ function ConceptCard({ concept, index, outcome, onMark }: { concept: Concept; in
 
 function IdeaPitcher() {
   const ideaFn = useServerFn(generateConceptsFromIdea);
+  const profileFn = useServerFn(getMyProfile);
+  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => profileFn() });
+  const activeProjectId = (profile as any)?.active_project?.id ?? null;
+
   const [idea, setIdea] = useState("");
   const [count, setCount] = useState(3);
-  const [result, setResult] = useState<{ analysis: IdeaAnalysis; concepts: Concept[] } | null>(null);
+  const qc = useQueryClient();
+
+  const cacheKey = ["idea-analysis", activeProjectId] as const;
+  const cached = qc.getQueryData<{ analysis: IdeaAnalysis; concepts: Concept[] }>(cacheKey as any);
 
   const mut = useMutation({
     mutationFn: (v: { idea: string; count: number }) => ideaFn({ data: v }),
-    onSuccess: (r) => setResult(r),
+    onSuccess: (r) => qc.setQueryData(cacheKey as any, r),
     onError: (e: any) => toast.error(e?.message ?? "Failed to analyze idea"),
   });
+
+  const result = (mut.data ?? cached) as { analysis: IdeaAnalysis; concepts: Concept[] } | undefined;
 
   return (
     <div className="surface-card p-5 sm:p-6 mb-6">
@@ -203,7 +212,7 @@ function IdeaPitcher() {
       <Textarea
         value={idea}
         onChange={(e) => setIdea(e.target.value)}
-        placeholder="e.g. 'Lisbon food tour', 'night trains in Europe', 'solo female travel in Japan'"
+        placeholder="e.g. 'agentic systems using Claude Opus', 'n8n + Supabase workflows', 'self-hosted AI agents'"
         maxLength={300}
         className="mb-3"
       />
@@ -234,6 +243,9 @@ function IdeaPitcher() {
             <div><p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Demand</p><p className="mt-1">{result.analysis?.demand}</p></div>
             <div><p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Difficulty</p><p className="mt-1">{result.analysis?.difficulty}</p></div>
             <div><p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Audience</p><p className="mt-1">{result.analysis?.audience}</p></div>
+            {result.analysis?.angle && (
+              <div className="sm:col-span-2"><p className="text-xs uppercase tracking-wider font-semibold text-primary">Differentiated angle</p><p className="mt-1">{result.analysis.angle}</p></div>
+            )}
           </div>
           {result.concepts.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">No concepts — this idea doesn't fit your niche. Try a different angle.</p>
