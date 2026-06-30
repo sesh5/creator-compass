@@ -292,3 +292,51 @@ export const getWatchlist = createServerFn({ method: "GET" })
     if (error) throw new Error(error.message);
     return data ?? [];
   });
+
+export const searchCompetitorByQuery = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ query: z.string().min(1).max(200) }).parse(d))
+  .handler(async ({ data }) => {
+    const q = data.query.trim();
+    const { getChannelByHandleOrUrl, searchChannelsByQuery, getChannelsBulk } = await import("./youtube.server");
+
+    const looksLikeChannel = /youtube\.com|youtu\.be|^@|^UC[\w-]{20,}$/i.test(q);
+    let channels: Array<{ id: string; title: string; description: string; thumbnail: string; subscriberCount: number; viewCount: number }> = [];
+
+    if (looksLikeChannel) {
+      try {
+        const ch = await getChannelByHandleOrUrl(q);
+        if (ch) channels = [ch];
+      } catch (e) {
+        if ((e as { isQuota?: boolean })?.isQuota) {
+          throw new Error("YouTube search quota is exhausted for today. Please try again in a few hours.");
+        }
+        throw e;
+      }
+    }
+
+    if (!channels.length) {
+      try {
+        const ids = await searchChannelsByQuery(q, 8, "relevance");
+        if (ids.length) channels = await getChannelsBulk(ids);
+      } catch (e) {
+        if ((e as { isQuota?: boolean })?.isQuota) {
+          throw new Error("YouTube search quota is exhausted for today. Please try again in a few hours.");
+        }
+        throw e;
+      }
+    }
+
+    return {
+      query: q,
+      results: channels.slice(0, 8).map((c) => ({
+        channel_id: c.id,
+        channel_name: c.title,
+        subscriber_count: c.subscriberCount,
+        view_count: c.viewCount,
+        thumbnail_url: c.thumbnail,
+        description: (c.description || "").slice(0, 200),
+      })),
+    };
+  });
+
