@@ -1,30 +1,14 @@
-# Tighter peer band + strict niche filter
+# Fuller ranked competitor discovery
 
 ## Goals
-1. Peer band is exactly **2x–5x** the user's current subscriber count, at every tier. No more wider tiers for small creators, no more 200K–2M for a 100K user.
+1. Peer discovery keeps the **2x–5x core**, but includes the practical nearby ladder so a 100K creator can see peers around **177K–600K**, not only one 201K result.
 2. Results are **strictly on-niche**. A travel creator must never see ASMR, cooking, etc.
-3. Return **as many on-niche peers in band as possible** — no artificial cap of 15.
+3. Return **as many on-niche peers in band as possible** — no artificial one-result or 15-result cap.
 4. Updating the subs pill instantly re-tiers the band and re-runs niche filtering.
 
-## 1. Strict 2x–5x band
+## 1. Dynamic growth ladder
 
-**`src/lib/discovery.functions.ts`** — replace `pickPeerBand` with:
-```ts
-export function pickPeerBand(userSubs: number) {
-  const base = Math.max(userSubs, 1_000); // floor for brand-new creators so band isn't 0–0
-  const lo = base * 2;
-  const hi = base * 5;
-  return { lo, hi, label: `${formatK(lo)}–${formatK(hi)}` };
-}
-```
-- 100K → 200K–500K
-- 500K → 1M–2.5M
-- 1M → 2M–5M
-- 0 / <1K → treated as 1K → 2K–5K (effectively "show small channels"); label reads "2K–5K"
-
-Edge case: for a true 0-sub user the 2K–5K band is too small to be useful. Add one fallback only for `userSubs < 1_000`: use a fixed **10K–100K** "starter" band with the label "Starter peers (10K–100K)". From 1K upward, strict 2x–5x applies, no exceptions.
-
-Remove the existing ±50% "widen if thin" fallback — user explicitly wants the band to be non-negotiable.
+For `userSubs >= 1K`, use a 2x–5x core for labeling and ranking context, but search 1.75x–6x so channels like 177K and 600K are not wrongly discarded for a 100K creator. For `userSubs < 1K`, use the existing starter band.
 
 ## 2. Strict niche filter (the hard part)
 
@@ -39,14 +23,14 @@ Use Lovable AI (`google/gemini-3-flash-preview`, already wired) to classify each
 If the AI call fails, fall back to Layer A only (still strict on keyword presence) so the user never sees an off-niche channel even when AI is down.
 
 ### Pipeline
-1. Pull up to 50 search results per niche-keywords query (current behavior).
-2. **NEW**: also issue a second search using the *primary* keyword alone (first keyword in `niche_keywords`) for an additional 50 candidates, then dedupe by channel id. Cost: one extra cached search call. Reason: combined keyword string ("travel vlog adventure") often misses pure-niche channels that only match one term.
+1. Pull multiple pages of channel search results across niche-specific query variants.
+2. Search by both relevance and view count, then dedupe by channel id. Reason: one top-50 YouTube search often misses most eligible channels.
 3. `getChannelsBulk` to hydrate stats.
 4. Filter by strict 2x–5x band.
 5. Filter by Layer A (keyword in title/description).
 6. Filter by Layer B (AI on_niche gate).
 7. Rank by composite score (unchanged: 0.6 ratio + 0.4 subs).
-8. Return **all** survivors (no slice cap). Cap at a safety ceiling of 30 to keep the UI responsive, but no min-15-then-stop.
+8. Return **all** survivors found, ranked by subscriber count and views.
 
 ## 3. UI updates
 

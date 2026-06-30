@@ -134,16 +134,47 @@ export async function getChannelByHandle(handle: string): Promise<YtChannel | nu
   };
 }
 
+type SearchOrder = "relevance" | "viewCount" | "date" | "rating" | "title";
+
+export async function searchChannelsByQuery(query: string, maxResults = 50, order: SearchOrder = "relevance"): Promise<string[]> {
+  const q = query.trim();
+  if (!q) return [];
+
+  const ids: string[] = [];
+  let pageToken: string | undefined;
+  let remaining = Math.max(1, maxResults);
+
+  while (remaining > 0) {
+    const pageSize = Math.min(50, remaining);
+    const key = `search:channels:${q.toLowerCase()}:${order}:${pageSize}:${pageToken ?? "first"}`;
+    const params: Record<string, string> = {
+      part: "snippet",
+      type: "channel",
+      q,
+      maxResults: String(pageSize),
+      relevanceLanguage: "en",
+      order,
+    };
+    if (pageToken) params.pageToken = pageToken;
+
+    const data = await ytFetch<{ items: any[]; nextPageToken?: string }>(
+      "search",
+      params,
+      key,
+      1000 * 60 * 60 * 24 * 3,
+    );
+
+    ids.push(...(data.items ?? []).map((i: any) => i.snippet?.channelId).filter(Boolean));
+    remaining -= pageSize;
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
+  }
+
+  return Array.from(new Set(ids));
+}
+
 export async function searchChannelsByKeywords(keywords: string[], maxResults = 25): Promise<string[]> {
-  const q = keywords.join(" ");
-  const key = `search:channels:${q.toLowerCase()}:${maxResults}`;
-  const data = await ytFetch<{ items: any[] }>(
-    "search",
-    { part: "snippet", type: "channel", q, maxResults: String(maxResults), relevanceLanguage: "en" },
-    key,
-    1000 * 60 * 60 * 24 * 3,
-  );
-  return (data.items ?? []).map((i: any) => i.snippet?.channelId).filter(Boolean);
+  return searchChannelsByQuery(keywords.join(" "), maxResults);
 }
 
 export async function getChannelsBulk(ids: string[]): Promise<YtChannel[]> {
