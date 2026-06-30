@@ -18,7 +18,7 @@ export const completeOnboarding = createServerFn({ method: "POST" })
 
     let channel_id: string | null = null;
     let channel_title: string | null = null;
-    let subscriber_count = 0;
+    let subscriber_count = data.subscriber_count ?? 0;
     let channel_url = data.channel_url?.trim() || null;
 
     if (channel_url) {
@@ -27,7 +27,8 @@ export const completeOnboarding = createServerFn({ method: "POST" })
         if (ch) {
           channel_id = ch.id;
           channel_title = ch.title;
-          subscriber_count = ch.subscriberCount;
+          // Prefer live count from YouTube if available
+          if (ch.subscriberCount > 0) subscriber_count = ch.subscriberCount;
         }
       } catch (e) {
         console.error("channel lookup failed", e);
