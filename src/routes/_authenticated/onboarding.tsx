@@ -88,6 +88,21 @@ function Onboarding() {
             />
             <p className="text-xs text-muted-foreground">Leave blank if you haven't started one yet.</p>
           </div>
+          <div className="mt-5 space-y-2">
+            <Label htmlFor="subs">Current subscriber count</Label>
+            <Input
+              id="subs"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              placeholder="0"
+              value={subCount}
+              onChange={(e) => setSubCount(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter <span className="font-medium">0</span> if you're just getting started — we'll match you with achievable 100K–1M peers instead of overwhelming mega-channels.
+            </p>
+          </div>
           <div className="mt-8 flex justify-end">
             <Button onClick={() => setStep(1)} className="brand-gradient border-0">Next</Button>
           </div>
