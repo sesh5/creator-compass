@@ -27,6 +27,7 @@ function Onboarding() {
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => profileFn() });
   const [step, setStep] = useState(0);
   const [channelUrl, setChannelUrl] = useState("");
+  const [subCount, setSubCount] = useState<string>("");
   const [kwInput, setKwInput] = useState("");
   const [keywords, setKeywords] = useState<string[]>([]);
   const [goal, setGoal] = useState<(typeof GOALS)[number]["id"] | null>(null);
@@ -37,7 +38,17 @@ function Onboarding() {
 
   const submit = useServerFn(completeOnboarding);
   const mut = useMutation({
-    mutationFn: () => submit({ data: { channel_url: channelUrl || null, niche_keywords: keywords, goal: goal! } }),
+    mutationFn: () => {
+      const parsed = subCount.trim() === "" ? null : Math.max(0, Math.floor(Number(subCount.replace(/,/g, ""))));
+      return submit({
+        data: {
+          channel_url: channelUrl || null,
+          subscriber_count: Number.isFinite(parsed as number) ? parsed : null,
+          niche_keywords: keywords,
+          goal: goal!,
+        },
+      });
+    },
     onSuccess: (res) => {
       if (res.channel_title) toast.success(`Found ${res.channel_title} (${res.subscriber_count.toLocaleString()} subs)`);
       router.navigate({ to: "/discover" });
