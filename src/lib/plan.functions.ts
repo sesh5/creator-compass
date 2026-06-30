@@ -10,6 +10,74 @@ export type Concept = {
   why_now: string;
 };
 
+export type IdeaAnalysis = {
+  fit: string;
+  demand: string;
+  difficulty: string;
+  audience: string;
+};
+
+const IdeaInput = z.object({
+  idea: z.string().trim().min(3).max(300),
+  count: z.number().int().min(1).max(5).optional(),
+});
+
+export const generateConceptsFromIdea = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => IdeaInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+    if (!profile) throw new Error("Profile not found");
+    const keywords: string[] = profile.niche_keywords ?? [];
+    if (!keywords.length) throw new Error("Add niche keywords in onboarding first.");
+
+    const { data: watch } = await supabase.from("watchlist").select("*").eq("user_id", userId).limit(10);
+    const competitorIds = (watch ?? []).map((w) => w.competitor_channel_id);
+    let cached: any[] = [];
+    if (competitorIds.length) {
+      const { data } = await supabase.from("cached_research").select("*").in("channel_id", competitorIds);
+      cached = data ?? [];
+    }
+    const outlierSummary = cached
+      .flatMap((c) =>
+        (c.outlier_videos_json as any[] | null)?.slice(0, 3).map((v) => `- "${v.title}" (${v.views} views, ${v.outlier_score}x) on ${c.channel_name}`) ?? [],
+      )
+      .join("\n");
+
+    const count = data.count ?? 3;
+    const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
+    const { generateText } = await import("ai");
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
+    const ai = createLovableAi(apiKey);
+
+    const prompt = `You are a YouTube growth coach for a small creator.
+Niche keywords (HARD constraint — every concept must stay strictly within this niche): ${keywords.join(", ")}
+Goal: ${profile.goal ?? "growth"}
+Channel size: ${profile.subscriber_count?.toLocaleString() ?? "0"} subs.
+
+The creator pitched THIS idea:
+"""${data.idea}"""
+
+What is outperforming in their niche right now:
+${outlierSummary || "(no competitor data yet — use your knowledge of the niche)"}
+
+Tasks:
+1. Analyze the idea in their niche context. Be honest about whether it will gain subscribers.
+2. If the idea is OFF-NICHE (e.g. cooking pitch from a travel creator), set analysis.fit to explain why it won't work for THEIR niche and return concepts: [].
+3. Otherwise produce EXACTLY ${count} video concepts that reframe the idea through their niche.
+
+Return ONLY strict minified JSON of this exact shape, no markdown:
+{"analysis":{"fit":"1-2 sentences on niche fit","demand":"1 sentence on search/audience demand","difficulty":"1 sentence on production effort solo","audience":"1 sentence on who watches this"},"concepts":[{"hook":"1-sentence hook","titles":["t1","t2","t3"],"thumbnail_brief":"what to show + overlay text","target_keyword":"primary keyword","why_now":"1 sentence"}]}`;
+
+    const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error("AI returned no JSON");
+    const parsed = JSON.parse(m[0]) as { analysis: IdeaAnalysis; concepts: Concept[] };
+    return { analysis: parsed.analysis, concepts: parsed.concepts ?? [] };
+  });
+
 export const generatePlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

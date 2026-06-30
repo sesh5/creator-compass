@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { generatePlan, getLatestPlan, getOutcomes, markConceptMade } from "@/lib/plan.functions";
+import { generateConceptsFromIdea, generatePlan, getLatestPlan, getOutcomes, markConceptMade } from "@/lib/plan.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader, EmptyState } from "@/components/Primitives";
-import { FileText, Loader2, Sparkles, Copy, Check, Video, Trophy } from "lucide-react";
+import { FileText, Loader2, Sparkles, Copy, Check, Video, Trophy, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
-import type { Concept } from "@/lib/plan.functions";
+import type { Concept, IdeaAnalysis } from "@/lib/plan.functions";
 
 export const Route = createFileRoute("/_authenticated/plan")({
   head: () => ({ meta: [{ title: "What to make next — CreatorArena" }, { name: "robots", content: "noindex" }] }),
@@ -55,6 +56,9 @@ function PlanPage() {
           </Button>
         }
       />
+
+      <IdeaPitcher />
+
 
       {!plan && !generateMut.isPending && (
         <EmptyState
@@ -167,6 +171,79 @@ function ConceptCard({ concept, index, outcome, onMark }: { concept: Concept; in
               <span>Outlier: <strong className="text-foreground">{outcome.outlier_score}x</strong></span>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IdeaPitcher() {
+  const ideaFn = useServerFn(generateConceptsFromIdea);
+  const [idea, setIdea] = useState("");
+  const [count, setCount] = useState(3);
+  const [result, setResult] = useState<{ analysis: IdeaAnalysis; concepts: Concept[] } | null>(null);
+
+  const mut = useMutation({
+    mutationFn: (v: { idea: string; count: number }) => ideaFn({ data: v }),
+    onSuccess: (r) => setResult(r),
+    onError: (e: any) => toast.error(e?.message ?? "Failed to analyze idea"),
+  });
+
+  return (
+    <div className="surface-card p-5 sm:p-6 mb-6">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg brand-gradient grid place-items-center text-primary-foreground">
+          <Lightbulb className="w-4 h-4" />
+        </div>
+        <h2 className="font-display text-lg font-semibold">Pitch your own idea</h2>
+      </div>
+      <p className="text-sm text-muted-foreground mb-3">
+        Type a place, topic, or angle you're thinking about. We'll check niche fit and turn it into video concepts.
+      </p>
+      <Textarea
+        value={idea}
+        onChange={(e) => setIdea(e.target.value)}
+        placeholder="e.g. 'Lisbon food tour', 'night trains in Europe', 'solo female travel in Japan'"
+        maxLength={300}
+        className="mb-3"
+      />
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-xs text-muted-foreground flex items-center gap-2">
+          Concepts:
+          <select
+            value={count}
+            onChange={(e) => setCount(Number(e.target.value))}
+            className="bg-background border rounded px-2 py-1 text-sm"
+          >
+            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+        <Button
+          onClick={() => mut.mutate({ idea: idea.trim(), count })}
+          disabled={mut.isPending || idea.trim().length < 3}
+          className="brand-gradient border-0"
+        >
+          {mut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analyzing</> : <><Sparkles className="w-4 h-4 mr-2" />Analyze & suggest</>}
+        </Button>
+      </div>
+
+      {result && (
+        <div className="mt-5 space-y-4">
+          <div className="rounded-lg border bg-accent/30 p-4 grid sm:grid-cols-2 gap-3 text-sm">
+            <div><p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Niche fit</p><p className="mt-1">{result.analysis?.fit}</p></div>
+            <div><p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Demand</p><p className="mt-1">{result.analysis?.demand}</p></div>
+            <div><p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Difficulty</p><p className="mt-1">{result.analysis?.difficulty}</p></div>
+            <div><p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Audience</p><p className="mt-1">{result.analysis?.audience}</p></div>
+          </div>
+          {result.concepts.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">No concepts — this idea doesn't fit your niche. Try a different angle.</p>
+          ) : (
+            <div className="space-y-3">
+              {result.concepts.map((c, i) => (
+                <ConceptCard key={i} concept={c} index={i} onMark={() => {}} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
