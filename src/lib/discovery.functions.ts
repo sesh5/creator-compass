@@ -4,11 +4,11 @@ import { z } from "zod";
 import { getActiveProject } from "./projects.functions";
 
 export function pickPeerBand(userSubs: number): { lo: number; hi: number; coreLo: number; coreHi: number; label: string } {
-  if (userSubs < 1_000) return { lo: 10_000, hi: 100_000, coreLo: 10_000, coreHi: 100_000, label: "Starter peers (10K–100K)" };
+  if (userSubs < 1_000) return { lo: 5_000, hi: 200_000, coreLo: 10_000, coreHi: 100_000, label: "Starter peers (10K–100K)" };
   const coreLo = userSubs * 2;
   const coreHi = userSubs * 5;
-  const lo = Math.floor(userSubs * 1.75);
-  const hi = Math.ceil(userSubs * 6);
+  const lo = Math.floor(userSubs * 0.5);
+  const hi = Math.ceil(userSubs * 8);
   return { lo, hi, coreLo, coreHi, label: `${formatK(coreLo)}–${formatK(coreHi)} core · ${formatK(lo)}–${formatK(hi)} ladder` };
 }
 
