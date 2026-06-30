@@ -67,7 +67,7 @@ function Discover() {
         description={
           profile?.subscriber_count
             ? `We'll find channels 2–8x your size (${formatNumber(profile.subscriber_count)} subs) so the benchmarks are real.`
-            : "We'll find small but growing channels in your niche."
+            : "We'll find achievable peers in your niche (50K–2M subs)."
         }
         action={
           <Button onClick={() => discoverMut.mutate()} disabled={discoverMut.isPending} className="brand-gradient border-0">
