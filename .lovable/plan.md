@@ -1,24 +1,51 @@
-## Why the search is failing
+# Analytics page — "What's Working"
 
-Two things stack on top of each other:
+A new authenticated page that summarises growth across the active project's `concept_outcomes`. Aggregate-only — does not duplicate the per-concept list on Results.
 
-1. **YouTube `search` quota is still exhausted** (same daily quota as the earlier 429). Free-text queries like `Vj Siddhu Vlogs` go through `search.list`, which costs 100 units per call — your project is out for the day.
-2. **`searchCompetitorByQuery` silently swallows that quota error** through the same `isQuota` `break` we added to `searchChannelsByQuery`. It returns `[]`, so the UI shows the misleading "No channels found for …" instead of the real "quota exhausted" message.
+## Scope
+- Scoped to `profiles.active_project_id` (resolved server-side, same pattern as other pages).
+- Read-only. Uses only `public.concept_outcomes`. No new tables, no schema changes.
+- Honors existing RLS (user's own rows).
 
-On top of that, the input has a stray leading apostrophe (`'Vj Siddhu Vlogs`) and no `@`, so even with quota we never try the cheap `channels.list?forHandle=` path (1 unit, separate quota bucket).
+## Files to add / change
 
-## Fix
+1. **`src/lib/analytics.functions.ts`** (new) — one authenticated server fn `getProjectAnalytics`:
+   - Resolves active project for the current user (reuse `getActiveProject` helper or inline equivalent).
+   - Returns short-circuit `{ hasProject: false }` if none.
+   - Single `select` of needed columns from `concept_outcomes` for that `project_id`:
+     `status, views, subs_gained, outlier_score, video_url, video_id, concept_snapshot, measured_at`.
+   - Aggregates in JS (dataset is small, one project's concepts) and returns a typed DTO:
+     - `funnel`: `{ suggested, made, measured, madeRate, measuredRate }`
+     - `totals`: `{ totalViews, totalSubsGained, avgOutlier, measuredCount }`
+     - `keywords`: array of `{ keyword, avgViews, count }` for `status='measured'`, grouped by `concept_snapshot.target_keyword`, sorted by avgViews desc, top 10.
+     - `greatestHits`: top 20 measured rows sorted by views desc with `{ id, hook, views, subs_gained, outlier_score, video_url, video_id }`.
 
-Edit `src/lib/discovery.functions.ts` → `searchCompetitorByQuery`:
+2. **`src/routes/_authenticated/analytics.tsx`** (new) — page component:
+   - Uses `useServerFn` + `useQuery` (no protected loader, consistent with other authed pages).
+   - `PageHeader` eyebrow "Analytics", title "What's Working", short description.
+   - Four sections in order:
+     1. **Idea funnel** — 3 stat cards (Suggested / Made / Measured) + 2 conversion cards (Made rate, Measured rate). Grid: 1 col mobile, 2-3 sm, 5 lg.
+     2. **Outcome totals** — 3 headline cards (Total views, Subs gained, Avg outlier score) using `formatNumber`.
+     3. **What to make more of** — horizontal bar chart via `ChartContainer` + Recharts `BarChart layout="vertical"`, YAxis=keyword, Bar=avgViews, custom tooltip showing avgViews + concept count. Uses `hsl(var(--primary))` token. Empty state if no measured concepts.
+     4. **Greatest hits** — ranked list (Card with divided rows). Each row: rank, hook (truncate), small meta line with views / subs gained / outlier score, external-link button to `video_url`.
+   - Loading: `Skeleton` blocks per section. Error: inline alert with retry.
+   - Empty states using `EmptyState`:
+     - No active project → "Create or pick a project to see analytics."
+     - No suggested concepts → "Generate ideas on the What to make page to get started."
+     - No measured concepts → "Make and measure your first suggested video to start tracking growth." (shown inside sections 2-4; funnel still renders with zeros.)
 
-1. **Sanitize input** — trim, strip leading non-alphanumerics (e.g. `'`, `@`, whitespace).
-2. **Try the cheap handle path first** for any single-token-ish query: build a handle candidate by removing spaces (`VjSiddhuVlogs`) and call `getChannelByHandle`. This uses `channels.list` (1 unit, not subject to the exhausted Search quota), so it'll succeed today for queries that resemble a handle.
-3. **Detect quota on the search fallback** — wrap `searchChannelsByQuery` so it re-throws quota errors here (instead of swallowing). Surface a clear toast: "YouTube search quota is exhausted for today — try pasting the channel URL or @handle instead."
-4. **Improve the empty-state copy** in `src/routes/_authenticated/discover.tsx` to hint the user can paste a URL or `@handle` when free-text search is unavailable.
+3. **`src/components/AppShell.tsx`** — add nav entry:
+   - Import `BarChart3` from `lucide-react`.
+   - Insert `{ to: "/analytics", label: "Analytics", icon: BarChart3 }` after Results (or between Results and Plan — placing after Results to keep Discover→Plan→Results flow, with Analytics as the reflective endpoint).
 
-### Technical detail
+## Technical notes
+- `concept_snapshot` is `jsonb`; cast in JS as `{ hook?: string; target_keyword?: string; titles?: string[] }`. Group keywords with a trimmed-lowercase key, display the first-seen original casing. Skip rows with empty/missing keyword (bucket as "Untagged" only if count>0, optional).
+- `avgOutlier` ignores null values; divide by count of non-null.
+- Conversion rates guard against divide-by-zero (return 0).
+- All colors via existing tokens (`bg-card`, `text-muted-foreground`, `hsl(var(--primary))`, etc.) — no hardcoded hex.
+- Mobile: stat grid collapses to 1-2 cols; bar chart container `h-[320px]`; greatest-hits rows stack meta below hook on small screens.
 
-- `src/lib/youtube.server.ts` already exports `getChannelByHandle`. We'll call it directly from `searchCompetitorByQuery` for the handle-candidate path so we don't depend on `searchChannelsByQuery` returning ids.
-- To re-throw quota from the search fallback without changing `searchChannelsByQuery` (which legitimately needs to swallow quota during bulk discovery), we'll call `searchChannelsByQuery` and, if it returns `[]` AND the cache for that query is empty, additionally try a direct `ytFetch`-like probe — simpler: add an internal flag-less variant by catching the error in a small inline `try` that calls a new tiny helper `searchChannelsByQueryStrict` exported from `youtube.server.ts` that does NOT swallow quota. Manual search re-throws so the user sees the real reason.
-
-No UI restructuring beyond the empty-state text. Watchlist/discovery flows are unchanged.
+## Out of scope
+- No new DB tables, migrations, RLS, or indexes.
+- No edits to Results page.
+- No date-range filter (can be added later).
