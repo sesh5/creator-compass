@@ -4,6 +4,7 @@ import { z } from "zod";
 
 const OnboardingInput = z.object({
   channel_url: z.string().trim().max(500).optional().nullable(),
+  subscriber_count: z.number().int().min(0).max(100_000_000).optional().nullable(),
   niche_keywords: z.array(z.string().trim().min(1).max(40)).max(8),
   goal: z.enum(["first_1k", "more_views", "monetization"]),
 });
