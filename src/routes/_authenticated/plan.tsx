@@ -1,14 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { generatePlan, getLatestPlan, getOutcomes, markConceptMade } from "@/lib/plan.functions";
+import { generateConceptsFromIdea, generatePlan, getLatestPlan, getOutcomes, markConceptMade } from "@/lib/plan.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { PageHeader, EmptyState } from "@/components/Primitives";
-import { FileText, Loader2, Sparkles, Copy, Check, Video, Trophy } from "lucide-react";
+import { FileText, Loader2, Sparkles, Copy, Check, Video, Trophy, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
-import type { Concept } from "@/lib/plan.functions";
+import type { Concept, IdeaAnalysis } from "@/lib/plan.functions";
 
 export const Route = createFileRoute("/_authenticated/plan")({
   head: () => ({ meta: [{ title: "What to make next — CreatorArena" }, { name: "robots", content: "noindex" }] }),
