@@ -178,6 +178,7 @@ export async function searchChannelsByQuery(query: string, maxResults = 50, orde
       if ((e as { isQuota?: boolean })?.isQuota) break;
       throw e;
     }
+  }
 
   return Array.from(new Set(ids));
 }
