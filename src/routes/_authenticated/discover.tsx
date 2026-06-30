@@ -1,14 +1,16 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { getMyProfile } from "@/lib/profile.functions";
-import { discoverCompetitors, addToWatchlist, removeFromWatchlist, getWatchlist } from "@/lib/discovery.functions";
+import { discoverCompetitors, addToWatchlist, removeFromWatchlist, getWatchlist, searchCompetitorByQuery } from "@/lib/discovery.functions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PageHeader, EmptyState, formatNumber } from "@/components/Primitives";
-import { Compass, Loader2, Plus, Check, ExternalLink, Sparkles } from "lucide-react";
+import { Compass, Loader2, Plus, Check, Sparkles, Search } from "lucide-react";
 import { toast } from "sonner";
 import { SubsEditor } from "@/components/SubsEditor";
+
 
 export const Route = createFileRoute("/_authenticated/discover")({
   head: () => ({ meta: [{ title: "Discover competitors — CreatorArena" }, { name: "robots", content: "noindex" }] }),
