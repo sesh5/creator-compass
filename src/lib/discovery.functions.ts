@@ -2,13 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
-export function pickPeerBand(userSubs: number): { lo: number; hi: number; label: string } {
-  // Strict 2x–5x of current size. For true beginners (<1K), the 2x–5x window
-  // would be too tiny to be useful (2K–5K), so use a fixed starter band.
-  if (userSubs < 1_000) return { lo: 10_000, hi: 100_000, label: "Starter peers (10K–100K)" };
-  const lo = userSubs * 2;
-  const hi = userSubs * 5;
-  return { lo, hi, label: `${formatK(lo)}–${formatK(hi)}` };
+export function pickPeerBand(userSubs: number): { lo: number; hi: number; coreLo: number; coreHi: number; label: string } {
+  // Keep the 2x–5x core, but search the practical ladder around it so nearby
+  // peers like 177K and 600K for a 100K creator are not thrown away.
+  if (userSubs < 1_000) return { lo: 10_000, hi: 100_000, coreLo: 10_000, coreHi: 100_000, label: "Starter peers (10K–100K)" };
+  const coreLo = userSubs * 2;
+  const coreHi = userSubs * 5;
+  const lo = Math.floor(userSubs * 1.75);
+  const hi = Math.ceil(userSubs * 6);
+  return { lo, hi, coreLo, coreHi, label: `${formatK(coreLo)}–${formatK(coreHi)} core · ${formatK(lo)}–${formatK(hi)} ladder` };
 }
 
 function formatK(n: number): string {
@@ -36,7 +38,8 @@ function rankCandidates<T extends { subscriberCount: number; viewCount: number }
 
 function passesKeywordGate(text: string, keywords: string[]): boolean {
   const haystack = text.toLowerCase();
-  return keywords.some((kw) => {
+  const terms = expandNicheTerms(keywords);
+  return terms.some((kw) => {
     const k = kw.toLowerCase().trim();
     if (!k) return false;
     // word-ish match: surrounded by non-letters or string ends
@@ -45,6 +48,47 @@ function passesKeywordGate(text: string, keywords: string[]): boolean {
   });
 }
 
+function expandNicheTerms(keywords: string[]): string[] {
+  const stop = new Set(["and", "or", "the", "a", "an", "to", "for", "with", "of", "in", "on", "by", "best", "top"]);
+  const terms = new Set<string>();
+  for (const keyword of keywords) {
+    const cleaned = keyword.toLowerCase().replace(/[^a-z0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
+    if (!cleaned) continue;
+    terms.add(cleaned);
+    for (const token of cleaned.split(/[\s-]+/)) {
+      if (token.length >= 3 && !stop.has(token)) terms.add(token);
+      if (token.endsWith("s") && token.length > 4) terms.add(token.slice(0, -1));
+    }
+  }
+  return Array.from(terms);
+}
+
+function buildSearchQueries(keywords: string[]): string[] {
+  const terms = expandNicheTerms(keywords);
+  const primary = terms.find((t) => !/^(vlog|vlogs|blog|blogs|channel|channels|creator|creators|video|videos|tips|guide|guides)$/.test(t)) ?? terms[0];
+  const queries = new Set<string>();
+
+  const phrase = keywords.join(" ").replace(/\s+/g, " ").trim();
+  if (phrase) queries.add(phrase);
+  for (const keyword of keywords) {
+    const cleaned = keyword.replace(/\s+/g, " ").trim();
+    if (cleaned) queries.add(cleaned);
+  }
+  if (primary) {
+    queries.add(primary);
+    queries.add(`${primary} channel`);
+    queries.add(`${primary} creator`);
+    if (/vlog|vlogs|blog|blogs/i.test(phrase)) {
+      queries.add(`${primary} vlog`);
+      queries.add(`${primary} vlogger`);
+    }
+  }
+
+  return Array.from(queries).slice(0, 8);
+}
+
+type AiVerdict = { on_niche: boolean; niche_tag: string; why_watch: string };
+
 export const discoverCompetitors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -52,22 +96,24 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
     const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
     if (!profile) throw new Error("Profile not found");
 
-    const { searchChannelsByKeywords, getChannelsBulk } = await import("./youtube.server");
+    const { searchChannelsByQuery, getChannelsBulk } = await import("./youtube.server");
     const keywords: string[] = profile.niche_keywords ?? [];
     if (!keywords.length) throw new Error("Add at least one niche keyword first.");
 
-    // Two searches for broader candidate pool: full keyword phrase + primary keyword alone.
-    const [idsCombined, idsPrimary] = await Promise.all([
-      searchChannelsByKeywords(keywords, 50),
-      keywords.length > 1 ? searchChannelsByKeywords([keywords[0]], 50) : Promise.resolve([] as string[]),
+    // Search several niche-specific queries and multiple pages so we do not stop at one match.
+    const queries = buildSearchQueries(keywords);
+    const searches = queries.flatMap((query) => [
+      searchChannelsByQuery(query, 150, "relevance"),
+      searchChannelsByQuery(query, 100, "viewCount"),
     ]);
-    const allIds = Array.from(new Set([...idsCombined, ...idsPrimary]));
+    const searchResults = await Promise.all(searches);
+    const allIds = Array.from(new Set(searchResults.flat()));
     const channels = await getChannelsBulk(allIds);
 
     const userSubs = profile.subscriber_count ?? 0;
     const band = pickPeerBand(userSubs);
 
-    // 1. Strict band filter (non-negotiable)
+    // 1. Dynamic subscriber ladder filter.
     const inBand = channels.filter(
       (c) => c.id !== profile.channel_id && c.subscriberCount >= band.lo && c.subscriberCount <= band.hi,
     );
@@ -77,26 +123,28 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
       passesKeywordGate(`${c.title} ${c.description}`, keywords),
     );
 
-    // 3. Layer B — AI on-niche classifier + tagging in one call
-    const SAFETY_CEILING = 30;
-    const candidates = keywordSurvivors.slice(0, SAFETY_CEILING);
+    // 3. Layer B — AI on-niche classifier + tagging in batches; no one-result cap.
+    const candidates = keywordSurvivors;
 
     const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
     const { generateText } = await import("ai");
     const key = process.env.LOVABLE_API_KEY;
-    let aiVerdict: Record<string, { on_niche: boolean; niche_tag: string; why_watch: string }> = {};
+    let aiVerdict: Record<string, AiVerdict> = {};
     let aiAvailable = false;
     if (key && candidates.length) {
       try {
         const ai = createLovableAi(key);
-        const prompt = `You are a strict niche classifier for a YouTube creator.\nCreator's niche keywords: ${keywords.join(", ")}.\nCreator's current subs: ${userSubs}.\n\nFor EACH channel below, decide if it is genuinely IN the creator's niche (same primary topic and audience). Be strict — a travel creator should NOT match cooking, ASMR, gaming, etc. just because a word overlaps.\n\nReturn STRICT JSON keyed by channel id:\n{"<id>": {"on_niche": true|false, "niche_tag": "<2-3 word niche tag>", "why_watch": "<one sentence (<=18 words) explaining what's notable>"}}\n\nChannels:\n${candidates
-          .map((c) => `- id=${c.id} | ${c.title} | subs=${c.subscriberCount} | desc=${(c.description || "").slice(0, 220)}`)
-          .join("\n")}\n\nReturn ONLY the JSON object, no commentary.`;
-        const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
-        const match = text.match(/\{[\s\S]*\}/);
-        if (match) {
-          aiVerdict = JSON.parse(match[0]);
-          aiAvailable = true;
+        for (let i = 0; i < candidates.length; i += 35) {
+          const batch = candidates.slice(i, i + 35);
+          const prompt = `You are a strict niche classifier for a YouTube creator.\nCreator's niche keywords: ${keywords.join(", ")}.\nCreator's current subs: ${userSubs}.\n\nFor EACH channel below, decide if it is genuinely IN the creator's niche (same primary topic, format, and audience). Be strict — a travel vlog creator should NOT match cooking, ASMR, gaming, camping gear, or unrelated lifestyle channels just because a word overlaps.\n\nReturn STRICT JSON keyed by channel id:\n{"<id>": {"on_niche": true|false, "niche_tag": "<2-3 word niche tag>", "why_watch": "<one sentence (<=18 words) explaining what's notable>"}}\n\nChannels:\n${batch
+            .map((c) => `- id=${c.id} | ${c.title} | subs=${c.subscriberCount} | views=${c.viewCount} | desc=${(c.description || "").slice(0, 260)}`)
+            .join("\n")}\n\nReturn ONLY the JSON object, no commentary.`;
+          const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
+          const match = text.match(/\{[\s\S]*\}/);
+          if (match) {
+            aiVerdict = { ...aiVerdict, ...JSON.parse(match[0]) };
+            aiAvailable = true;
+          }
         }
       } catch (e) {
         console.error("ai niche-gate failed", e);
@@ -114,6 +162,7 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
     return {
       band_label: band.label,
       user_subs: userSubs,
+      candidate_count: channels.length,
       competitors: ranked.map((c) => ({
         channel_id: c.id,
         channel_name: c.title,

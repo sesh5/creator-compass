@@ -68,10 +68,10 @@ function Discover() {
         title="Who are your achievable peers?"
         description={
           result
-            ? `Strict 2x–5x peers for ${formatNumber(result.user_subs)} subs — ${result.band_label}, on-niche only.`
+            ? `Ranked niche peers for ${formatNumber(result.user_subs)} subs — ${result.band_label}, on-niche only.`
             : profile?.subscriber_count
-              ? `We'll show channels 2x–5x your size (${formatNumber(profile.subscriber_count)} subs), strictly in your niche.`
-              : "We'll show channels 2x–5x your size, strictly in your niche."
+              ? `We'll search the full growth ladder around ${formatNumber(profile.subscriber_count)} subs, strictly in your niche.`
+              : "We'll search your growth ladder, strictly in your niche."
         }
         action={
           <div className="flex items-center gap-3">
@@ -137,11 +137,11 @@ function Discover() {
           {competitors.length === 0 ? (
             <EmptyState
               title="No on-niche channels in that band"
-              description={`Nothing matched the strict ${result?.band_label} range for your niche. Try refining your niche keywords in Onboarding — more specific terms give better matches.`}
+              description={`Nothing matched the ${result?.band_label} range for your niche. Try refining your niche keywords in Onboarding — more specific terms give better matches.`}
             />
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {competitors.map((c) => {
+              {competitors.map((c, index) => {
                 const isAdded = watchedIds.has(c.channel_id);
                 return (
                   <div key={c.channel_id} className="surface-card p-5 flex flex-col">
@@ -152,7 +152,7 @@ function Discover() {
                         <div className="w-12 h-12 rounded-full bg-muted" />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">{c.channel_name}</p>
+                        <p className="font-semibold truncate"><span className="text-primary mr-1">#{index + 1}</span>{c.channel_name}</p>
                         <p className="text-xs text-muted-foreground">{formatNumber(c.subscriber_count)} subs · {formatNumber(c.view_count)} views</p>
                       </div>
                     </div>
