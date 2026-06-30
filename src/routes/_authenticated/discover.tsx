@@ -51,7 +51,20 @@ function Discover() {
     if (discoverQ.error) toast.error((discoverQ.error as any)?.message ?? "Discovery failed");
   }, [discoverQ.error]);
 
+  const manualQ = useQuery({
+    queryKey: ["manual-search", submittedQuery],
+    queryFn: () => searchFn({ data: { query: submittedQuery } }),
+    enabled: !!submittedQuery,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+  });
+  useEffect(() => {
+    if (manualQ.error) toast.error((manualQ.error as any)?.message ?? "Search failed");
+  }, [manualQ.error]);
+
   const addMut = useMutation({
+
     mutationFn: (c: any) =>
       addFn({
         data: {
