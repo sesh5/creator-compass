@@ -89,7 +89,12 @@ function TeardownPage() {
         <p className="text-sm text-muted-foreground mb-4">Outlier score = video views ÷ subscriber count. Anything &gt; 1.0 is a breakout.</p>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {outliers.map((v) => (
-            <a key={v.video_id} href={`https://youtube.com/watch?v=${v.video_id}`} target="_blank" rel="noreferrer" className="surface-card overflow-hidden hover:shadow-lg transition-shadow">
+            <button
+              key={v.video_id}
+              type="button"
+              onClick={() => window.open(`https://youtube.com/watch?v=${v.video_id}`, "_blank", "noopener,noreferrer")}
+              className="surface-card overflow-hidden hover:shadow-lg transition-shadow text-left"
+            >
               {v.thumbnail && <img src={v.thumbnail} alt="" className="w-full aspect-video object-cover" />}
               <div className="p-4">
                 <p className="font-medium text-sm line-clamp-2">{v.title}</p>
@@ -98,8 +103,9 @@ function TeardownPage() {
                   <span className="px-2 py-0.5 rounded-full bg-success/15 text-success font-semibold">{v.outlier_score}x</span>
                 </div>
               </div>
-            </a>
+            </button>
           ))}
+
         </div>
         <div className="mt-4 text-right">
           <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching}>
