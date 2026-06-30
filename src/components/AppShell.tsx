@@ -2,7 +2,7 @@ import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Compass, FileText, Trophy, LogOut, Menu, X, Moon, Sun, ChevronLeft, ChevronRight } from "lucide-react";
+import { Sparkles, Compass, FileText, Trophy, BarChart3, LogOut, Menu, X, Moon, Sun, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -15,6 +15,7 @@ const nav = [
   { to: "/discover", label: "Discover", icon: Compass },
   { to: "/plan", label: "What to make", icon: FileText },
   { to: "/results", label: "Results", icon: Trophy },
+  { to: "/analytics", label: "Analytics", icon: BarChart3 },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
