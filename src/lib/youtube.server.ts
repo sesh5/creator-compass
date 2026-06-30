@@ -160,18 +160,24 @@ export async function searchChannelsByQuery(query: string, maxResults = 50, orde
     };
     if (pageToken) params.pageToken = pageToken;
 
-    const data = await ytFetch<{ items: any[]; nextPageToken?: string }>(
-      "search",
-      params,
-      key,
-      1000 * 60 * 60 * 24 * 3,
-    );
+    try {
+      const data = await ytFetch<{ items: any[]; nextPageToken?: string }>(
+        "search",
+        params,
+        key,
+        1000 * 60 * 60 * 24 * 3,
+      );
 
-    ids.push(...(data.items ?? []).map((i: any) => i.snippet?.channelId).filter(Boolean));
-    remaining -= pageSize;
-    pageToken = data.nextPageToken;
-    if (!pageToken) break;
-  }
+      ids.push(...(data.items ?? []).map((i: any) => i.snippet?.channelId).filter(Boolean));
+      remaining -= pageSize;
+      pageToken = data.nextPageToken;
+      if (!pageToken) break;
+    } catch (e) {
+      // Swallow quota errors so partial/cached results from other queries still flow.
+      // Re-throw other errors so real failures surface.
+      if ((e as { isQuota?: boolean })?.isQuota) break;
+      throw e;
+    }
 
   return Array.from(new Set(ids));
 }
