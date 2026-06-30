@@ -4,7 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Compass, FileText, Trophy, LogOut, Menu, X, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getMyProfile } from "@/lib/profile.functions";
+import { SubsEditor } from "@/components/SubsEditor";
 
 const nav = [
   { to: "/discover", label: "Discover", icon: Compass },
@@ -18,6 +21,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
   const [dark, setDark] = useState(false);
+  const profileFn = useServerFn(getMyProfile);
+  const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => profileFn() });
+
 
   useEffect(() => {
     const saved = localStorage.getItem("ca-theme");
@@ -69,7 +75,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               );
             })}
           </nav>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            {profile?.onboarded ? (
+              <div className="hidden sm:block">
+                <SubsEditor subs={profile.subscriber_count} variant="pill" />
+              </div>
+            ) : null}
             <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
               {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>

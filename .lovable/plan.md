@@ -1,24 +1,62 @@
-# Fix: Discover only returns one channel
+# Dynamic subscriber count + ranked competitors
 
-## Root cause
-`src/lib/discovery.functions.ts` filters YouTube search results to **100K–1M subs** when the user has 0 or <1,000 subs. Most niche search results fall outside that band (either >1M or <100K), so only one channel survived.
+## Goal
+Let the creator update their subscriber count at any time, and have Discover always return 10–15 ranked peers sized to the latest count — so as they grow, the competitor set levels up with them.
 
-## Change
-Widen the band to **50K–2M subs** for creators with 0 or <1,000 subs. Keeps mega-channels out, keeps tiny no-signal channels out, but gives ~3–5x more surviving candidates.
+## 1. Editable subscriber count (UI)
 
-### File: `src/lib/discovery.functions.ts`
-Replace the two `userSubs === 0` and `userSubs < 1_000` branches so both use:
+**`src/components/AppShell.tsx`** — add a compact "Subs: 1,250 ✎" pill in the top nav, next to the theme/logout buttons. Click opens a small popover with a number input + Save button. On save, calls a new `updateSubscriberCount` server fn, invalidates the `["profile"]` query, and toasts "Updated — competitor tier refreshed."
+
+**`src/routes/_authenticated/discover.tsx`** — also show an inline "Update subs" link in the page header so it's discoverable on the screen where it matters most.
+
+## 2. Server fn
+
+**`src/lib/profile.functions.ts`** — add:
 ```ts
-filtered = channels.filter(
-  (c) => c.subscriberCount >= 50_000 && c.subscriberCount <= 2_000_000,
-);
+export const updateSubscriberCount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ subscriber_count: z.number().int().min(0).max(100_000_000) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await context.supabase.from("profiles")
+      .update({ subscriber_count: data.subscriber_count })
+      .eq("id", context.userId);
+    return { ok: true };
+  });
 ```
-Leave the `>= 1,000 subs` branch (dynamic `lo`/`hi` based on user size) unchanged.
+No schema change — `profiles.subscriber_count` already exists.
 
-### Copy tweak: `src/routes/_authenticated/discover.tsx`
-Update the description shown when `subscriber_count` is falsy from "small but growing channels in your niche" to "achievable peers in your niche (50K–2M subs)" so the UI matches the new band.
+## 3. Tiered, ranked competitor discovery (10–15 results)
+
+**`src/lib/discovery.functions.ts`** — replace current filter with a size-tier band tied to the user's current subscriber count, then rank inside the band:
+
+| User subs | Peer band (subs) |
+| --- | --- |
+| 0 | 10K – 250K |
+| 1–999 | 25K – 500K |
+| 1K – 10K | 100K – 1M |
+| 10K – 100K | 500K – 5M |
+| 100K – 1M | user×2 – user×20 |
+| ≥1M | user×1.5 – user×10 |
+
+Pipeline:
+1. Pull 50 search results (was 30) for more raw candidates, still one cached search call.
+2. Filter to the band.
+3. Rank by composite score: `0.6 * normalized(viewCount/subscriberCount) + 0.4 * normalized(subscriberCount)` — rewards both outlier performance (good signal for new creator) and proximity to the top of the band (aspirational targets just above them).
+4. Return top 15; if band yields <10, widen band by ±50% once and re-rank.
+5. Sort order in the UI: highest composite score first.
+
+UI label in `discover.tsx` page header updates dynamically: "Peers in the {bandLabel} range, ranked for {formatNumber(subs)} subs."
+
+## 4. Auto-refresh on subscriber change
+- `updateSubscriberCount` mutation `onSuccess` invalidates `["profile"]` AND `["watchlist"]` queries, and clears `discoverMut.data` so the user sees a fresh "Find competitors" prompt with the new tier.
 
 ## Not changing
-- Number of YouTube search results requested (still 30) — no extra API quota.
-- Sort order (still by view/sub ratio, best peers first).
-- Logic for established creators (≥1,000 subs).
+- DB schema (column exists).
+- YouTube cache TTLs (already 6h–3d).
+- Plan / Teardown / Results routes.
+- Onboarding flow (still captures initial subs).
+
+## Technical notes
+- Tier function lives in `discovery.functions.ts` as a pure helper `pickPeerBand(userSubs)` returning `{ lo, hi, label }` so the UI can read the same label via a tiny GET server fn or by computing client-side from the profile.
+- Composite score normalization uses min/max within the current candidate set so it's robust to niche differences.
+- Quota impact: one extra ~50-result search per Discover click vs. 30 — still 100 units, same as before (search cost is per call, not per result).
