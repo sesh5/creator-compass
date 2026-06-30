@@ -136,9 +136,14 @@ function BestWorst({ icon, label, video, variant }: { icon: React.ReactNode; lab
       <p className="text-xs text-muted-foreground mt-1">{formatNumber(video.views)} views</p>
       <p className="mt-3 text-sm text-muted-foreground">{video.why}</p>
       {video.video_id && (
-        <a href={`https://youtube.com/watch?v=${video.video_id}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center text-xs text-primary hover:underline">
+        <button
+          type="button"
+          onClick={() => window.open(`https://youtube.com/watch?v=${video.video_id}`, "_blank", "noopener,noreferrer")}
+          className="mt-3 inline-flex items-center text-xs text-primary hover:underline"
+        >
           Watch <ExternalLink className="w-3 h-3 ml-1" />
-        </a>
+        </button>
+
       )}
     </div>
   );
