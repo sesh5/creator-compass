@@ -39,7 +39,10 @@ async function ytFetch<T = unknown>(path: string, params: Record<string, string>
   const res = await fetch(url.toString());
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`YouTube API ${res.status}: ${text.slice(0, 300)}`);
+    const err = new Error(`YouTube API ${res.status}: ${text.slice(0, 300)}`) as Error & { status?: number; isQuota?: boolean };
+    err.status = res.status;
+    err.isQuota = res.status === 429 || /quota/i.test(text);
+    throw err;
   }
   const json = (await res.json()) as T;
   await writeCache(cacheKey, json);
