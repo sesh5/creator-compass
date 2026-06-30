@@ -115,6 +115,70 @@ function Discover() {
         }
       />
 
+      <section className="mb-10 surface-card p-4">
+        <h2 className="font-display text-base font-semibold mb-1">Add a competitor manually</h2>
+        <p className="text-xs text-muted-foreground mb-3">Paste a YouTube URL, @handle, or channel name — even if it's not in the suggested list.</p>
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const q = manualQuery.trim();
+            if (q) setSubmittedQuery(q);
+          }}
+        >
+          <Input
+            placeholder="e.g. @NateHerk, https://youtube.com/@…, or 'AI automation'"
+            value={manualQuery}
+            onChange={(e) => setManualQuery(e.target.value)}
+          />
+          <Button type="submit" disabled={manualQ.isFetching || !manualQuery.trim()}>
+            {manualQ.isFetching ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Search className="w-4 h-4 mr-1" />Search</>}
+          </Button>
+        </form>
+
+        {manualQ.data && (
+          <div className="mt-4">
+            {manualQ.data.results.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No channels found for "{manualQ.data.query}".</p>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {manualQ.data.results.map((c) => {
+                  const isAdded = watchedIds.has(c.channel_id);
+                  return (
+                    <div key={c.channel_id} className="border rounded-lg p-3 flex gap-3">
+                      {c.thumbnail_url ? (
+                        <img src={c.thumbnail_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-muted" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm truncate">{c.channel_name}</p>
+                        <p className="text-xs text-muted-foreground">{formatNumber(c.subscriber_count)} subs</p>
+                        <div className="mt-2 flex gap-2 flex-wrap">
+                          <Button
+                            size="sm"
+                            variant={isAdded ? "outline" : "default"}
+                            onClick={() => isAdded ? removeMut.mutate(c.channel_id) : addMut.mutate({ ...c, niche_tag: "manual", why_watch: "Added manually" })}
+                            disabled={addMut.isPending}
+                          >
+                            {isAdded ? <><Check className="w-3 h-3 mr-1" />Added</> : <><Plus className="w-3 h-3 mr-1" />Watchlist</>}
+                          </Button>
+                          <Link to="/teardown/$channelId" params={{ channelId: c.channel_id }}>
+                            <Button size="sm" variant="ghost">
+                              <Sparkles className="w-3 h-3 mr-1" />Teardown
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
 
       {watchlist && watchlist.length > 0 && (
         <section className="mb-10">
