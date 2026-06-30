@@ -149,6 +149,9 @@ Return STRICT minified JSON: {"queries":["q1","q2",...]} — no commentary.`;
     ]);
     const searchResults = await Promise.all(searches);
     const allIds = Array.from(new Set(searchResults.flat()));
+    if (!allIds.length) {
+      throw new Error("YouTube search quota is exhausted for today. Please try again in a few hours — your watchlist and saved data are unaffected.");
+    }
     const channels = await getChannelsBulk(allIds);
 
     const userSubs = project.subscriber_count ?? 0;
