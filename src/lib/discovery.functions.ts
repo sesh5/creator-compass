@@ -5,7 +5,7 @@ import { z } from "zod";
 export function pickPeerBand(userSubs: number): { lo: number; hi: number; coreLo: number; coreHi: number; label: string } {
   // Keep the 2x–5x core, but search the practical ladder around it so nearby
   // peers like 177K and 600K for a 100K creator are not thrown away.
-  if (userSubs < 1_000) return { lo: 10_000, hi: 100_000, label: "Starter peers (10K–100K)" };
+  if (userSubs < 1_000) return { lo: 10_000, hi: 100_000, coreLo: 10_000, coreHi: 100_000, label: "Starter peers (10K–100K)" };
   const coreLo = userSubs * 2;
   const coreHi = userSubs * 5;
   const lo = Math.floor(userSubs * 1.75);
