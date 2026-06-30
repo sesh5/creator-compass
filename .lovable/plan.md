@@ -1,90 +1,43 @@
-# Multi-niche projects
+## Three fixes
 
-Right now, a user has exactly one niche stored on their profile, and every watchlist row, content plan, concept outcome, benchmark, and teardown is scoped only by `user_id`. We'll introduce a **Project** as the new scoping unit (one project = one niche + one channel context), let the user create and switch between projects, and scope all existing data to the active project.
+### 1. Discover: return ~10 competitors and search more thoroughly
 
-## 1. Data model
+Problem: only 3 results, and obvious channels (e.g. "Nate Herk | AI Automation", ~900K) are missed.
 
-New table `public.projects`:
-- `id uuid pk`, `user_id uuid → auth.users`, `name text` (e.g. "Travel vlog", "Tech trends")
-- `channel_url`, `channel_id`, `channel_title`, `subscriber_count int`
-- `niche_keywords text[]`, `goal` (same enum as today)
-- `is_default bool`, `created_at`, `updated_at`
-- RLS: owner-only (user_id = auth.uid()). GRANT select/insert/update/delete to authenticated, all to service_role.
+Changes in `src/lib/discovery.functions.ts`:
+- **Broaden search**: expand `buildSearchQueries` to use multi-word combos of niche keywords (e.g. "AI automation", "agentic AI", "n8n agents", "Claude agents") plus per-keyword variants. Pull each query at higher `maxResults` and add `order=date` as a third pass so newer fast-growing channels surface alongside `relevance` + `viewCount`.
+- **Looser band, then re-rank**: widen the ladder to `0.5x – 8x` user subs (still skip the user's own channel) so 900K shows up for a 500K creator. Keep the 2x–5x "core" label for UI context, but don't drop out-of-core peers.
+- **Softer keyword gate**: keep the strict regex pre-filter, but if the AI niche classifier is available, skip the regex gate and let the AI judge fit (the AI already rejects off-niche). This recovers channels whose title/description doesn't literally contain the keyword (e.g. "Nate Herk").
+- **Return up to 12**: after AI on-niche filtering + ranking, `slice(0, 12)`. UI shows count as before.
+- **Better AI prompt**: in the niche-gate prompt, give 3–4 concrete on-niche / off-niche examples derived from the keywords so borderline tech-creator channels are kept.
 
-Add `project_id uuid not null references public.projects(id) on delete cascade` to:
-- `watchlist`, `content_plans`, `concept_outcomes`, `benchmark_targets`, `benchmark_snapshots`, `cached_research`, `title_lab_runs`
+### 2. What to Make: deeper, less generic "Analyze & suggest"
 
-Migration backfill:
-- For each existing profile with `onboarded = true`, insert one project named after their first niche keyword (or "My channel"), copy channel + niche fields, mark `is_default = true`.
-- Update existing rows in the tables above to point to that project.
-- Then set `project_id` NOT NULL and add indexes on `(user_id, project_id)`.
+Problem: pitching "agentic systems using Claude Opus" returns generic concepts.
 
-Profile keeps `id/email/onboarded` plus a new `active_project_id uuid` (nullable, references projects). Niche/channel fields stay on the profile for now (read-only legacy) but new code reads from the active project.
+Changes in `src/lib/plan.functions.ts` (`generateConceptsFromIdea`):
+- **Use a stronger model for this call only**: switch from `google/gemini-3-flash-preview` to `google/gemini-3.1-pro-preview` for idea analysis. Plan auto-generation stays on flash for speed/cost.
+- **Inject richer context**: include up to 8 competitors (currently 10) AND their top 5 outliers each (currently 3), plus each competitor's `niche_tag` and subscriber count. Include the project's subscriber count and goal explicitly.
+- **Sharper prompt**: require the AI to (a) name 2 specific competitor videos the concept is modeled on, (b) explain the angle vs. the obvious take, (c) propose a differentiated hook (no "Top 5…", no "Ultimate guide…"), (d) flag if the pitch is too broad and narrow it. Add a "reject generic phrasing" rule with examples.
+- **Add `analysis.angle`**: a new field summarizing the specific angle taken (shown as a small line above each concept). Extend `IdeaAnalysis` type and the UI render in `plan.tsx`.
 
-## 2. Server functions
+### 3. Persist Discover results and Plan idea-analysis across tab switches
 
-New `src/lib/projects.functions.ts`:
-- `listProjects()` — returns user's projects + which is active.
-- `createProject({ name, channel_url?, subscriber_count?, niche_keywords, goal })` — runs the existing YouTube channel lookup (same logic as `completeOnboarding`), inserts row, sets it active.
-- `updateProject({ id, ...fields })` — rename, edit niche, edit subscriber count.
-- `deleteProject({ id })` — blocks deleting the last project.
-- `setActiveProject({ id })` — updates `profiles.active_project_id`.
+Today: switching tabs unmounts the route component and the in-memory `useMutation` result is lost.
 
-Update every existing server fn that touches scoped tables to:
-- Resolve the active project (`profiles.active_project_id`, fall back to default), and
-- Filter / insert with `project_id` instead of just `user_id`.
+Approach: keep the results in the TanStack Query cache (already provided at the router) so they survive route unmounts within a session. No DB writes.
 
-Files touched: `discovery.functions.ts`, `plan.functions.ts`, `teardown.functions.ts`, `profile.functions.ts` (subs editor now writes to active project), `routes/api/public/hooks/measure-outcomes.ts` (scope by project_id stored on the outcome row).
+Changes:
+- **Discover (`src/routes/_authenticated/discover.tsx`)**: replace the `useMutation` for `discoverCompetitors` with `useQuery({ queryKey: ["discover-results", activeProjectId], queryFn: () => discoverFn(), enabled: false, staleTime: Infinity, gcTime: Infinity })`. The "Find competitors" button calls `refetch()`. Result reads from `query.data`. Already invalidated on project switch by `ProjectSwitcher` (`qc.removeQueries({ queryKey: ["discover-results"] })`).
+- **Plan idea pitcher (`src/routes/_authenticated/plan.tsx`)**: replace the `IdeaPitcher` `useMutation` + local `result` state with a `useQuery({ queryKey: ["idea-analysis", activeProjectId], enabled: false, staleTime: Infinity, gcTime: Infinity })` driven by a ref-held latest `{ idea, count }`. Button triggers `refetch()`. Result persists across navigation. Cleared on project switch (add `qc.removeQueries({ queryKey: ["idea-analysis"] })` to `ProjectSwitcher`).
+- No localStorage, no DB table — purely in-memory cache, which matches the user's ask ("don't make me search again" within the session).
 
-`completeOnboarding` becomes "create first project + mark onboarded" — same UX, but it inserts a project row instead of writing niche fields onto the profile.
+### Files touched
+- `src/lib/discovery.functions.ts` — query expansion, looser band, AI-gate-when-available, return 12, better classifier prompt
+- `src/lib/plan.functions.ts` — pro model for `generateConceptsFromIdea`, richer context, stricter prompt, `analysis.angle`
+- `src/routes/_authenticated/discover.tsx` — `useQuery` cache instead of mutation
+- `src/routes/_authenticated/plan.tsx` — `useQuery` cache for IdeaPitcher, render `analysis.angle`
+- `src/components/ProjectSwitcher.tsx` — also clear `["idea-analysis"]` on switch
 
-## 3. UI
-
-**Project switcher in `AppShell` header** (left of the SubsEditor pill):
-- Dropdown showing current project name + niche tag, list of other projects, "+ New project" item, "Manage projects" link.
-- Switching calls `setActiveProject` then `queryClient.invalidateQueries()` so Discover/Plan/Results/Teardown refetch under the new scope.
-- `SubsEditor` continues to show subs but now edits the active project's subscriber_count.
-
-**New route `/projects`** (`src/routes/_authenticated/projects.tsx`):
-- Card grid of projects: name, niche keywords, subs, channel title, "Set active / Active", "Edit", "Delete".
-- "Create new project" opens a modal reusing the onboarding form fields (channel URL optional, subs, niche keywords, goal).
-
-**Onboarding flow** stays the same visually, but on submit it creates the user's first project and sets it active.
-
-**Header nav** gets a small "Projects" link (or only in the dropdown footer to keep nav tight — TBD, default: in dropdown).
-
-**Discover / Plan / Results / Teardown**: no UI rewrites. They already read `profile.subscriber_count` / `profile.niche_keywords`; we swap those reads to come from the active project (returned alongside profile by `getMyProfile`, or via a new `getActiveProject` query).
-
-## 4. Niche enforcement stays per-project
-
-All existing strict-niche prompts (discovery niche-gate, plan generator, IdeaPitcher) keep working — they just read keywords from the active project instead of the profile. Switching projects gives a completely different competitor list, plan, and idea analysis.
-
-## 5. Not changing
-
-- `ConceptCard`, discovery ladder math (2x–5x), AI prompts (only the source of niche keywords changes), onboarding form fields, auth, RLS model for existing tables (just adds project_id scoping).
-- No cross-project sharing, no team members, no per-project theming.
-
-## Technical notes
-
-- One migration creates `projects`, backfills, adds `project_id` columns + FKs + indexes, sets `active_project_id` on profiles. Run table creation → GRANT → ALTER ENABLE RLS → policies, in that order.
-- `getMyProfile` returns `{ profile, activeProject, projects: [{id,name}] }` so the header can render the switcher without a second round-trip.
-- All scoped queries gain `.eq('project_id', activeProjectId)`; inserts include `project_id`.
-- `concept_outcomes` measurement webhook reads `project_id` from the outcome row itself — no caller change.
-- Deleting a project cascades watchlist/plans/outcomes/etc. Confirm dialog warns about this.
-
-## Files
-
-New:
-- `supabase/migrations/<ts>_projects.sql`
-- `src/lib/projects.functions.ts`
-- `src/components/ProjectSwitcher.tsx`
-- `src/components/ProjectFormDialog.tsx`
-- `src/routes/_authenticated/projects.tsx`
-
-Edited:
-- `src/components/AppShell.tsx` (mount switcher)
-- `src/components/SubsEditor.tsx` (write to active project)
-- `src/lib/profile.functions.ts` (return active project; onboarding creates project)
-- `src/lib/discovery.functions.ts`, `src/lib/plan.functions.ts`, `src/lib/teardown.functions.ts` (project scoping)
-- `src/routes/_authenticated/onboarding.tsx` (calls createProject under the hood)
-- `src/routes/api/public/hooks/measure-outcomes.ts` (uses outcome.project_id)
+### Not changing
+- DB schema, RLS, auth, onboarding, watchlist, results page, teardown, plan auto-generation model, `ConceptCard` structure.
