@@ -14,7 +14,302 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      benchmark_snapshots: {
+        Row: {
+          comparison_json: Json | null
+          created_at: string
+          id: string
+          target_channel_id: string
+          target_videos_json: Json | null
+          user_id: string
+          user_videos_json: Json | null
+          week_start: string
+        }
+        Insert: {
+          comparison_json?: Json | null
+          created_at?: string
+          id?: string
+          target_channel_id: string
+          target_videos_json?: Json | null
+          user_id: string
+          user_videos_json?: Json | null
+          week_start: string
+        }
+        Update: {
+          comparison_json?: Json | null
+          created_at?: string
+          id?: string
+          target_channel_id?: string
+          target_videos_json?: Json | null
+          user_id?: string
+          user_videos_json?: Json | null
+          week_start?: string
+        }
+        Relationships: []
+      }
+      benchmark_targets: {
+        Row: {
+          added_at: string
+          channel_id: string
+          channel_name: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          channel_id: string
+          channel_name: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          channel_id?: string
+          channel_name?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      cached_research: {
+        Row: {
+          channel_id: string
+          channel_name: string | null
+          fetched_at: string
+          id: string
+          outlier_videos_json: Json | null
+          subscriber_count: number | null
+          teardown_json: Json | null
+        }
+        Insert: {
+          channel_id: string
+          channel_name?: string | null
+          fetched_at?: string
+          id?: string
+          outlier_videos_json?: Json | null
+          subscriber_count?: number | null
+          teardown_json?: Json | null
+        }
+        Update: {
+          channel_id?: string
+          channel_name?: string | null
+          fetched_at?: string
+          id?: string
+          outlier_videos_json?: Json | null
+          subscriber_count?: number | null
+          teardown_json?: Json | null
+        }
+        Relationships: []
+      }
+      concept_outcomes: {
+        Row: {
+          concept_index: number
+          concept_snapshot: Json
+          content_plan_id: string | null
+          created_at: string
+          id: string
+          marked_made_at: string | null
+          measured_at: string | null
+          niche_keywords: string[] | null
+          outlier_score: number | null
+          status: string
+          subs_gained: number | null
+          updated_at: string
+          user_id: string
+          video_id: string | null
+          video_url: string | null
+          views: number | null
+        }
+        Insert: {
+          concept_index: number
+          concept_snapshot: Json
+          content_plan_id?: string | null
+          created_at?: string
+          id?: string
+          marked_made_at?: string | null
+          measured_at?: string | null
+          niche_keywords?: string[] | null
+          outlier_score?: number | null
+          status?: string
+          subs_gained?: number | null
+          updated_at?: string
+          user_id: string
+          video_id?: string | null
+          video_url?: string | null
+          views?: number | null
+        }
+        Update: {
+          concept_index?: number
+          concept_snapshot?: Json
+          content_plan_id?: string | null
+          created_at?: string
+          id?: string
+          marked_made_at?: string | null
+          measured_at?: string | null
+          niche_keywords?: string[] | null
+          outlier_score?: number | null
+          status?: string
+          subs_gained?: number | null
+          updated_at?: string
+          user_id?: string
+          video_id?: string | null
+          video_url?: string | null
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concept_outcomes_content_plan_id_fkey"
+            columns: ["content_plan_id"]
+            isOneToOne: false
+            referencedRelation: "content_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_plans: {
+        Row: {
+          concepts_json: Json
+          created_at: string
+          id: string
+          source_competitors: string[] | null
+          user_id: string
+        }
+        Insert: {
+          concepts_json: Json
+          created_at?: string
+          id?: string
+          source_competitors?: string[] | null
+          user_id: string
+        }
+        Update: {
+          concepts_json?: Json
+          created_at?: string
+          id?: string
+          source_competitors?: string[] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          channel_id: string | null
+          channel_title: string | null
+          channel_url: string | null
+          created_at: string
+          email: string | null
+          goal: string | null
+          id: string
+          niche_keywords: string[] | null
+          onboarded: boolean
+          subscriber_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          channel_id?: string | null
+          channel_title?: string | null
+          channel_url?: string | null
+          created_at?: string
+          email?: string | null
+          goal?: string | null
+          id: string
+          niche_keywords?: string[] | null
+          onboarded?: boolean
+          subscriber_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string | null
+          channel_title?: string | null
+          channel_url?: string | null
+          created_at?: string
+          email?: string | null
+          goal?: string | null
+          id?: string
+          niche_keywords?: string[] | null
+          onboarded?: boolean
+          subscriber_count?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      title_lab_runs: {
+        Row: {
+          created_at: string
+          id: string
+          input_title: string
+          suggestions_json: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input_title: string
+          suggestions_json: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input_title?: string
+          suggestions_json?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
+      watchlist: {
+        Row: {
+          added_at: string
+          channel_name: string
+          competitor_channel_id: string
+          id: string
+          niche_tag: string | null
+          subscriber_count: number | null
+          thumbnail_url: string | null
+          user_id: string
+          why_watch: string | null
+        }
+        Insert: {
+          added_at?: string
+          channel_name: string
+          competitor_channel_id: string
+          id?: string
+          niche_tag?: string | null
+          subscriber_count?: number | null
+          thumbnail_url?: string | null
+          user_id: string
+          why_watch?: string | null
+        }
+        Update: {
+          added_at?: string
+          channel_name?: string
+          competitor_channel_id?: string
+          id?: string
+          niche_tag?: string | null
+          subscriber_count?: number | null
+          thumbnail_url?: string | null
+          user_id?: string
+          why_watch?: string | null
+        }
+        Relationships: []
+      }
+      youtube_api_cache: {
+        Row: {
+          cache_key: string
+          fetched_at: string
+          payload: Json
+        }
+        Insert: {
+          cache_key: string
+          fetched_at?: string
+          payload: Json
+        }
+        Update: {
+          cache_key?: string
+          fetched_at?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
