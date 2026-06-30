@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyProfile } from "@/lib/profile.functions";
 import { SubsEditor } from "@/components/SubsEditor";
+import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 
 const nav = [
   { to: "/discover", label: "Discover", icon: Compass },
@@ -77,9 +78,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="flex items-center gap-2">
             {profile?.onboarded ? (
-              <div className="hidden sm:block">
-                <SubsEditor subs={profile.subscriber_count} variant="pill" />
-              </div>
+              <>
+                <div className="hidden sm:block">
+                  <ProjectSwitcher active={profile.active_project ?? null} projects={profile.projects ?? []} />
+                </div>
+                <div className="hidden sm:block">
+                  <SubsEditor subs={profile.subscriber_count} variant="pill" />
+                </div>
+              </>
             ) : null}
             <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
               {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
