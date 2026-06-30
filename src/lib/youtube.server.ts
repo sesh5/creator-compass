@@ -39,7 +39,10 @@ async function ytFetch<T = unknown>(path: string, params: Record<string, string>
   const res = await fetch(url.toString());
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`YouTube API ${res.status}: ${text.slice(0, 300)}`);
+    const err = new Error(`YouTube API ${res.status}: ${text.slice(0, 300)}`) as Error & { status?: number; isQuota?: boolean };
+    err.status = res.status;
+    err.isQuota = res.status === 429 || /quota/i.test(text);
+    throw err;
   }
   const json = (await res.json()) as T;
   await writeCache(cacheKey, json);
@@ -157,17 +160,24 @@ export async function searchChannelsByQuery(query: string, maxResults = 50, orde
     };
     if (pageToken) params.pageToken = pageToken;
 
-    const data = await ytFetch<{ items: any[]; nextPageToken?: string }>(
-      "search",
-      params,
-      key,
-      1000 * 60 * 60 * 24 * 3,
-    );
+    try {
+      const data = await ytFetch<{ items: any[]; nextPageToken?: string }>(
+        "search",
+        params,
+        key,
+        1000 * 60 * 60 * 24 * 3,
+      );
 
-    ids.push(...(data.items ?? []).map((i: any) => i.snippet?.channelId).filter(Boolean));
-    remaining -= pageSize;
-    pageToken = data.nextPageToken;
-    if (!pageToken) break;
+      ids.push(...(data.items ?? []).map((i: any) => i.snippet?.channelId).filter(Boolean));
+      remaining -= pageSize;
+      pageToken = data.nextPageToken;
+      if (!pageToken) break;
+    } catch (e) {
+      // Swallow quota errors so partial/cached results from other queries still flow.
+      // Re-throw other errors so real failures surface.
+      if ((e as { isQuota?: boolean })?.isQuota) break;
+      throw e;
+    }
   }
 
   return Array.from(new Set(ids));
