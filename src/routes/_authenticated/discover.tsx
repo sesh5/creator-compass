@@ -32,10 +32,18 @@ function Discover() {
   const { data: watchlist, refetch: refetchWatch } = useQuery({ queryKey: ["watchlist"], queryFn: () => watchFn() });
   const watchedIds = new Set((watchlist ?? []).map((w) => w.competitor_channel_id));
 
-  const discoverMut = useMutation({
-    mutationFn: () => discoverFn(),
-    onError: (e: any) => toast.error(e?.message ?? "Discovery failed"),
+  const activeProjectId = (profile as any)?.active_project?.id ?? null;
+  const discoverQ = useQuery({
+    queryKey: ["discover-results", activeProjectId],
+    queryFn: () => discoverFn(),
+    enabled: false,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
   });
+  useEffect(() => {
+    if (discoverQ.error) toast.error((discoverQ.error as any)?.message ?? "Discovery failed");
+  }, [discoverQ.error]);
 
   const addMut = useMutation({
     mutationFn: (c: any) =>
