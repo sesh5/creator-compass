@@ -68,10 +68,10 @@ function Discover() {
         title="Who are your achievable peers?"
         description={
           result
-            ? `Showing peers in the ${result.band_label} range, ranked for ${formatNumber(result.user_subs)} subs.`
+            ? `Strict 2x–5x peers for ${formatNumber(result.user_subs)} subs — ${result.band_label}, on-niche only.`
             : profile?.subscriber_count
-              ? `We'll rank peers sized for ${formatNumber(profile.subscriber_count)} subs so the benchmarks are real.`
-              : "We'll find 10–15 achievable peers in your niche, ranked by reach and engagement."
+              ? `We'll show channels 2x–5x your size (${formatNumber(profile.subscriber_count)} subs), strictly in your niche.`
+              : "We'll show channels 2x–5x your size, strictly in your niche."
         }
         action={
           <div className="flex items-center gap-3">
@@ -124,18 +124,20 @@ function Discover() {
           description={
             watchlist && watchlist.length
               ? "Hit ‘Find competitors’ above to refresh suggestions in your niche."
-              : "Tap ‘Find competitors’ above. We'll search YouTube for channels in your niche that are 2–8x your size."
+              : "Tap ‘Find competitors’ above. We'll search YouTube for channels in your niche that are 2x–5x your size."
           }
         />
       )}
 
       {competitors && (
         <section>
-          <h2 className="font-display text-lg font-semibold mb-3">Suggested competitors</h2>
+          <h2 className="font-display text-lg font-semibold mb-3">
+            Suggested competitors {competitors.length > 0 ? `(${competitors.length})` : ""}
+          </h2>
           {competitors.length === 0 ? (
             <EmptyState
-              title="No matches in that size range"
-              description="Try editing your niche keywords. Most niches have small-but-growing channels — we just need the right search terms."
+              title="No on-niche channels in that band"
+              description={`Nothing matched the strict ${result?.band_label} range for your niche. Try refining your niche keywords in Onboarding — more specific terms give better matches.`}
             />
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
