@@ -331,6 +331,36 @@ export type Database = {
         }
         Relationships: []
       }
+      teardown_chats: {
+        Row: {
+          channel_id: string
+          content: string
+          created_at: string
+          id: string
+          role: string
+          sources_json: Json | null
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          sources_json?: Json | null
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          sources_json?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       title_lab_runs: {
         Row: {
           created_at: string
