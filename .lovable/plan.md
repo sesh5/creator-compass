@@ -1,40 +1,43 @@
-# Why the Results page shows only dashes
+# URL validation + live-updating views
 
-Your row is real and correct in the database:
+Two additions to the Results/Plan flow.
 
-- `status = "made"`, `video_id = "KZf5_hgchyI"` (57k views, valid)
-- `views / subs_gained / outlier_score` are all still `null`
+## 1. Verify the YouTube URL before saving
 
-I confirmed the YouTube API returns proper stats for that video ID and the cache has never been populated for it. So the numbers are missing for one reason: **the "made → measured" step only runs when you click "Refresh stats"**, and that click hasn't happened yet for this row. Nothing is broken — it just hasn't been asked to fetch.
+Right now `markConceptMade` only checks the URL matches a regex — anything that looks like `youtube.com/watch?v=XXXXXXXXXXX` is accepted, even if the video doesn't exist. The app then quietly stores a dead ID and Results shows dashes forever.
 
-Clicking **Refresh stats** right now will fill in views, subs gained, and outlier. But requiring a manual click for every new video is bad UX and is exactly why it looks "not giving any result".
+Fix: after parsing the ID, call `getVideoById(vid)` inside `markConceptMade` and treat "no video returned" as a hard error, not a silent skip.
 
-# Fix
+- If the API returns nothing → throw `"We couldn't find that video on YouTube. Double-check the URL — it needs to be a public video you own."`
+- If it returns a video → include its `title` and `thumbnail` in the response, and the Plan page shows a small confirmation toast: `Locked in: "<video title>"` so the user sees exactly what got attached before trusting the numbers.
+- Same-turn: auto-measure (already added last turn) uses the video we just fetched — no second API round trip.
 
-Make measurement automatic when a concept is marked as made, and make refresh feedback louder.
+No new UI dialog is needed; the toast + error message is enough to prevent fake/typo URLs.
 
-## Changes
+## 2. Live-updating views on the Results page
 
-1. `src/lib/plan.functions.ts` — `markConceptMade`
-   - After the UPDATE to `status = "made"`, immediately fetch the video via `getVideoById(vid)` and, if found, write `views`, `outlier_score`, `subs_gained`, `measured_at`, and flip status to `"measured"` in the same request.
-   - Wrap in try/catch so a YouTube API hiccup still leaves the row as `"made"` (the manual refresh remains as a fallback).
-   - Return `{ ok: true, measured: boolean }` so the client can toast "Marked and measured" vs "Marked — will measure on next refresh".
+You picked **"Every time you open Results"**. Implementation:
 
-2. `src/lib/plan.functions.ts` — `measureMyOutcomes`
-   - When it processes a row but `getVideoById` returns `null` (deleted / private / typo), log that specific outcome id and include a `skipped: number` count in the return value.
-   - Return `{ measured, skipped }`.
+- On the Results page, add a `useEffect` that calls `measureMyOutcomes` once on mount (in addition to the existing manual "Refresh stats" button).
+- Debounce with a client-side timestamp in `sessionStorage` (key `results:lastAutoMeasure`) so opening the page twice in the same hour doesn't spam the YouTube API. The manual button always runs regardless.
+- The refresh runs quietly in the background — no spinner overlay. When it finishes, the `outcomes` query invalidates and the cards re-render with fresh numbers. Toast only on failure.
 
-3. `src/routes/_authenticated/results.tsx`
-   - Update the toast to include skipped: `Measured X · Skipped Y` when `skipped > 0`, and switch to an error toast when `measured === 0 && rows > 0`.
+### Bypass the stale YouTube cache
 
-4. Plan page (wherever `markConceptMade` is called) — surface the new `measured` flag in the success toast. No behavior change if it's already generic.
+`getVideoById` currently caches results in `youtube_api_cache` for 2 hours (`ytFetch` cache), so even after "Refresh stats" the numbers can be up to 2 hours stale. Fix by adding a `fresh?: boolean` option to `getVideoById`:
+
+- When called from `measureMyOutcomes`, pass `fresh: true` → skip the cache read, still write the result back so other callers get a fresh entry.
+- When called from `markConceptMade` (verify step), keep the cache (a video just uploaded is fine to cache for 2h).
+
+## Files touched
+
+- `src/lib/youtube.server.ts` — add `fresh` param to `getVideoById` (and to `ytFetch` — read path only).
+- `src/lib/plan.functions.ts` — `markConceptMade` throws on unresolved video and returns `{ ok, measured, video_title }`; `measureMyOutcomes` calls `getVideoById(id, { fresh: true })`.
+- `src/routes/_authenticated/plan.tsx` — toast now shows the confirmed video title.
+- `src/routes/_authenticated/results.tsx` — mount-time silent auto-refresh with 1-hour sessionStorage throttle.
 
 ## Not changing
 
-- Database schema, RLS, or the YouTube cache layer.
-- The manual "Refresh stats" button (kept as a safety net for older rows and for view-count updates over time).
-- The teardown chat feature.
-
-## After deploying
-
-Existing row `92abb938…` will still be `"made"` with null metrics until you click **Refresh stats** once. All new "mark as made" actions will populate metrics instantly.
+- No cron job, no new secrets, no schema changes.
+- Manual "Refresh stats" button stays.
+- Teardown page and chat feature untouched.
