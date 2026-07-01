@@ -263,14 +263,14 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const project = await getActiveProject(supabase, userId);
-    if (!project) return { measured: 0 };
+    if (!project) return { measured: 0, skipped: 0 };
     const { data: rows } = await supabase
       .from("concept_outcomes")
       .select("*")
       .eq("project_id", project.id)
       .eq("user_id", userId)
       .in("status", ["made", "measured"]);
-    if (!rows?.length) return { measured: 0 };
+    if (!rows?.length) return { measured: 0, skipped: 0 };
 
     const { getVideoById, getChannelById } = await import("./youtube.server");
     let currentSubs = project.subscriber_count ?? 0;
@@ -282,11 +282,16 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
     }
 
     let measured = 0;
+    let skipped = 0;
     for (const r of rows as any[]) {
-      if (!r.video_id) continue;
+      if (!r.video_id) { skipped++; continue; }
       try {
         const v = await getVideoById(r.video_id);
-        if (!v) continue;
+        if (!v) {
+          console.warn("measure: video not found", { outcome_id: r.id, video_id: r.video_id });
+          skipped++;
+          continue;
+        }
         const subsAtMade = r.subs_gained == null ? (project.subscriber_count ?? 0) : (r.subs_gained ?? 0);
         const outlier = currentSubs > 0 ? Number((v.viewCount / Math.max(1, currentSubs)).toFixed(2)) : null;
         await supabase
@@ -302,10 +307,12 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
         measured++;
       } catch (e) {
         console.error("measure failed", r.id, e);
+        skipped++;
       }
     }
     if (project.channel_id && currentSubs !== project.subscriber_count) {
       await supabase.from("projects").update({ subscriber_count: currentSubs }).eq("id", project.id);
     }
-    return { measured };
+    return { measured, skipped };
+  });
   });
