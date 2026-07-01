@@ -22,7 +22,15 @@ function ResultsPage() {
 
   const measureMut = useMutation({
     mutationFn: () => measureFn(),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["outcomes"] }); toast.success(`Measured ${r.measured} video${r.measured === 1 ? "" : "s"}`); },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["outcomes"] });
+      const skipped = (r as any).skipped ?? 0;
+      if (r.measured === 0 && skipped > 0) {
+        toast.error(`Couldn't measure ${skipped} video${skipped === 1 ? "" : "s"}. Check the URL is public.`);
+      } else {
+        toast.success(`Measured ${r.measured} video${r.measured === 1 ? "" : "s"}${skipped ? ` · skipped ${skipped}` : ""}`);
+      }
+    },
     onError: (e: any) => toast.error(e?.message ?? "Failed"),
   });
 
