@@ -34,6 +34,21 @@ function ResultsPage() {
     onError: (e: any) => toast.error(e?.message ?? "Failed"),
   });
 
+  // Silent auto-refresh once per hour when the page mounts, so views stay live.
+  const autoRefreshed = useRef(false);
+  useEffect(() => {
+    if (autoRefreshed.current) return;
+    autoRefreshed.current = true;
+    try {
+      const last = Number(sessionStorage.getItem("results:lastAutoMeasure") ?? "0");
+      if (Date.now() - last < 60 * 60 * 1000) return;
+      sessionStorage.setItem("results:lastAutoMeasure", String(Date.now()));
+    } catch {}
+    measureFn()
+      .then(() => qc.invalidateQueries({ queryKey: ["outcomes"] }))
+      .catch((e) => console.warn("auto-measure failed", e));
+  }, [measureFn, qc]);
+
   const made = useMemo(() => (outcomes ?? []).filter((o) => o.status === "made" || o.status === "measured"), [outcomes]);
   const totalSuggested = outcomes?.length ?? 0;
   const totalMade = made.length;
