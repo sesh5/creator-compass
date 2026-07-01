@@ -58,8 +58,9 @@ export const sendTeardownMessage = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
-    // 1) Load cached teardown for context.
-    const { data: cached, error: cachedErr } = await supabase
+    // 1) Load cached teardown for context (service-role read: RLS is closed to end users).
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: cached, error: cachedErr } = await supabaseAdmin
       .from("cached_research")
       .select("channel_name, subscriber_count, teardown_json, outlier_videos_json")
       .eq("channel_id", data.channel_id)

@@ -2,13 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 
 // Public cron endpoint: refreshes stats for every "made" or "measured" concept_outcome.
-// Auth: requires the Supabase anon key in an apikey header (pg_cron passes it).
+// Auth: requires a shared CRON_SECRET (private, server-only) as a Bearer token.
 export const Route = createFileRoute("/api/public/hooks/measure-outcomes")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apikey = request.headers.get("apikey") ?? "";
-        if (apikey !== process.env.SUPABASE_PUBLISHABLE_KEY) {
+        const cronSecret = process.env.CRON_SECRET;
+        if (!cronSecret) return new Response("Server not configured", { status: 500 });
+        const authHeader = request.headers.get("authorization") ?? "";
+        const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+        if (!token || token !== cronSecret) {
           return new Response("Unauthorized", { status: 401 });
         }
         const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {

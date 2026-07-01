@@ -38,7 +38,8 @@ export const generateConceptsFromIdea = createServerFn({ method: "POST" })
     const competitorIds = (watch ?? []).map((w: any) => w.competitor_channel_id);
     let cached: any[] = [];
     if (competitorIds.length) {
-      const { data } = await supabase.from("cached_research").select("*").in("channel_id", competitorIds);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data } = await supabaseAdmin.from("cached_research").select("*").in("channel_id", competitorIds);
       cached = data ?? [];
     }
     const competitorSummary = cached
@@ -103,7 +104,8 @@ export const generatePlan = createServerFn({ method: "POST" })
     const competitorIds = (watch ?? []).map((w: any) => w.competitor_channel_id);
     let cached: any[] = [];
     if (competitorIds.length) {
-      const { data } = await supabase.from("cached_research").select("*").in("channel_id", competitorIds);
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data } = await supabaseAdmin.from("cached_research").select("*").in("channel_id", competitorIds);
       cached = data ?? [];
     }
 
