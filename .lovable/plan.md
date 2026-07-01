@@ -1,51 +1,73 @@
-# Analytics page — "What's Working"
+# Teardown Chat with Web Search
 
-A new authenticated page that summarises growth across the active project's `concept_outcomes`. Aggregate-only — does not duplicate the per-concept list on Results.
+Add an inline "Ask about this channel" chat at the bottom of the teardown page. Messages are saved per channel in the database. The AI has both the teardown context and a web search tool it can call to answer questions like "why did Archa Cooking blow up?".
 
-## Scope
-- Scoped to `profiles.active_project_id` (resolved server-side, same pattern as other pages).
-- Read-only. Uses only `public.concept_outcomes`. No new tables, no schema changes.
-- Honors existing RLS (user's own rows).
+## 1. Database (migration)
 
-## Files to add / change
+New table `public.teardown_chats`:
+- `id uuid pk`
+- `user_id uuid not null` (owner, RLS-scoped)
+- `channel_id text not null` (YouTube channel id from the teardown route)
+- `role text` check in (`user`, `assistant`)
+- `content text`
+- `created_at timestamptz default now()`
+- index on `(user_id, channel_id, created_at)`
 
-1. **`src/lib/analytics.functions.ts`** (new) — one authenticated server fn `getProjectAnalytics`:
-   - Resolves active project for the current user (reuse `getActiveProject` helper or inline equivalent).
-   - Returns short-circuit `{ hasProject: false }` if none.
-   - Single `select` of needed columns from `concept_outcomes` for that `project_id`:
-     `status, views, subs_gained, outlier_score, video_url, video_id, concept_snapshot, measured_at`.
-   - Aggregates in JS (dataset is small, one project's concepts) and returns a typed DTO:
-     - `funnel`: `{ suggested, made, measured, madeRate, measuredRate }`
-     - `totals`: `{ totalViews, totalSubsGained, avgOutlier, measuredCount }`
-     - `keywords`: array of `{ keyword, avgViews, count }` for `status='measured'`, grouped by `concept_snapshot.target_keyword`, sorted by avgViews desc, top 10.
-     - `greatestHits`: top 20 measured rows sorted by views desc with `{ id, hook, views, subs_gained, outlier_score, video_url, video_id }`.
+Standard grants + RLS: user can select/insert/delete only their own rows (`auth.uid() = user_id`). No anon access.
 
-2. **`src/routes/_authenticated/analytics.tsx`** (new) — page component:
-   - Uses `useServerFn` + `useQuery` (no protected loader, consistent with other authed pages).
-   - `PageHeader` eyebrow "Analytics", title "What's Working", short description.
-   - Four sections in order:
-     1. **Idea funnel** — 3 stat cards (Suggested / Made / Measured) + 2 conversion cards (Made rate, Measured rate). Grid: 1 col mobile, 2-3 sm, 5 lg.
-     2. **Outcome totals** — 3 headline cards (Total views, Subs gained, Avg outlier score) using `formatNumber`.
-     3. **What to make more of** — horizontal bar chart via `ChartContainer` + Recharts `BarChart layout="vertical"`, YAxis=keyword, Bar=avgViews, custom tooltip showing avgViews + concept count. Uses `hsl(var(--primary))` token. Empty state if no measured concepts.
-     4. **Greatest hits** — ranked list (Card with divided rows). Each row: rank, hook (truncate), small meta line with views / subs gained / outlier score, external-link button to `video_url`.
-   - Loading: `Skeleton` blocks per section. Error: inline alert with retry.
-   - Empty states using `EmptyState`:
-     - No active project → "Create or pick a project to see analytics."
-     - No suggested concepts → "Generate ideas on the What to make page to get started."
-     - No measured concepts → "Make and measure your first suggested video to start tracking growth." (shown inside sections 2-4; funnel still renders with zeros.)
+## 2. Web search connector
 
-3. **`src/components/AppShell.tsx`** — add nav entry:
-   - Import `BarChart3` from `lucide-react`.
-   - Insert `{ to: "/analytics", label: "Analytics", icon: BarChart3 }` after Results (or between Results and Plan — placing after Results to keep Discover→Plan→Results flow, with Analytics as the reflective endpoint).
+Web search will use **Firecrawl** (Lovable's default web connector), called server-side. The workspace does not have a Firecrawl connection linked yet, so the plan will prompt to connect Firecrawl when the chat backend is wired. No API key input needed from the user — it's a one-click connector link.
+
+## 3. Server: `src/lib/teardown-chat.functions.ts`
+
+Three auth-protected server functions (all `.middleware([requireSupabaseAuth])`):
+
+- `listTeardownMessages({ channel_id })` — returns the user's saved messages for that channel, oldest first.
+- `clearTeardownMessages({ channel_id })` — deletes the thread (for a "Clear chat" button).
+- `sendTeardownMessage({ channel_id, message })` — the main handler:
+  1. Load cached teardown row from `cached_research` for `channel_id` (channel_name, subs, teardown_json, outlier_videos_json). Fail gracefully if missing ("Run the teardown first").
+  2. Load prior messages from `teardown_chats` for this user + channel.
+  3. Insert the new user message.
+  4. Call Lovable AI Gateway (`google/gemini-3-flash-preview`) via `@ai-sdk/openai-compatible` + `generateText` with:
+     - System prompt: role = YouTube growth analyst; here is the teardown JSON + top outliers for `<channel_name>`; use the `web_search` tool when the user asks about current events, virality reasons, recent news, or anything outside the teardown; cite sources inline as `[domain](url)` when web is used.
+     - Full message history + new user message.
+     - A single `web_search` tool defined with `tool()` + Zod input `{ query: string }`, `execute` calls Firecrawl `search` (limit 5, markdown scrape) via `FIRECRAWL_API_KEY`, returns compact `[{title,url,snippet}]`.
+     - `stopWhen: stepCountIs(50)`.
+  5. Insert the assistant reply. Return `{ reply, usedWebSearch: boolean, sources: [...] }`.
+
+Non-streaming (simpler, matches the existing teardown page pattern that already uses `useQuery` + `useServerFn`). Errors (429 rate limit, 402 credits, Firecrawl failures) surface as toast messages.
+
+## 4. UI: `src/components/TeardownChat.tsx`
+
+New component, rendered as the last section on `src/routes/_authenticated/teardown.$channelId.tsx`:
+
+- Section header "Ask about this channel" with a small "Clear" button.
+- Message list styled with the existing `surface-card` system:
+  - User messages: right-aligned bubble using `bg-primary text-primary-foreground`.
+  - Assistant messages: no bubble, rendered as markdown via `react-markdown` + `remark-gfm` (install if missing) so links from web search render.
+  - If assistant used web search, show a small "Sources" row with domain chips linking out.
+- Empty state suggests example prompts: "Why is this channel growing?", "What's their best-performing hook?", "Why did their latest video blow up?" (clicking fills the input).
+- Composer: `<Textarea>` + `<Button>` submit; Enter to send, Shift+Enter for newline; disabled while awaiting reply; shows a "Thinking…" shimmer row.
+- Data: `useQuery(["teardown-chat", channelId], listTeardownMessages)` for history; `useMutation(sendTeardownMessage)` optimistically appends the user message and invalidates the query on success.
+
+Mobile responsive; textarea autofocuses after each reply.
+
+## 5. Wire-up
+
+- `src/routes/_authenticated/teardown.$channelId.tsx`: import and render `<TeardownChat channelId={channelId} channelName={data.channel_name} />` after the outliers section.
+- No changes to the existing teardown fetch or cache.
 
 ## Technical notes
-- `concept_snapshot` is `jsonb`; cast in JS as `{ hook?: string; target_keyword?: string; titles?: string[] }`. Group keywords with a trimmed-lowercase key, display the first-seen original casing. Skip rows with empty/missing keyword (bucket as "Untagged" only if count>0, optional).
-- `avgOutlier` ignores null values; divide by count of non-null.
-- Conversion rates guard against divide-by-zero (return 0).
-- All colors via existing tokens (`bg-card`, `text-muted-foreground`, `hsl(var(--primary))`, etc.) — no hardcoded hex.
-- Mobile: stat grid collapses to 1-2 cols; bar chart container `h-[320px]`; greatest-hits rows stack meta below hook on small screens.
+
+- Chat only shows on the teardown page. History is scoped to `(user_id, channel_id)` — switching projects or channels shows the right thread automatically.
+- The AI does not re-run the teardown; it reads from the `cached_research` row that already exists.
+- `LOVABLE_API_KEY` is already provisioned. `FIRECRAWL_API_KEY` will be injected once the Firecrawl connector is linked in build step.
+- No new tables besides `teardown_chats`. No schema changes to `cached_research`.
+- Follows the existing `surface-card` / `brand-gradient` design tokens — no hardcoded colors.
 
 ## Out of scope
-- No new DB tables, migrations, RLS, or indexes.
-- No edits to Results page.
-- No date-range filter (can be added later).
+
+- Streaming responses (can add later with `streamText` + a chat API route if desired).
+- Cross-channel chat / a global assistant.
+- Editing or branching past messages.
