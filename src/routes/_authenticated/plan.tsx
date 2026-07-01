@@ -39,7 +39,10 @@ function PlanPage() {
 
   const markMut = useMutation({
     mutationFn: (v: { outcome_id: string; video_url: string }) => markFn({ data: v }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["outcomes"] }); toast.success("Locked in. We'll measure it weekly."); },
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["outcomes"] });
+      toast.success(r.measured ? "Locked in — stats are live on Results." : "Locked in. We'll measure it shortly.");
+    },
     onError: (e: any) => toast.error(e?.message ?? "Failed"),
   });
 

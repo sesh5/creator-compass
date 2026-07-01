@@ -1,73 +1,40 @@
-# Teardown Chat with Web Search
+# Why the Results page shows only dashes
 
-Add an inline "Ask about this channel" chat at the bottom of the teardown page. Messages are saved per channel in the database. The AI has both the teardown context and a web search tool it can call to answer questions like "why did Archa Cooking blow up?".
+Your row is real and correct in the database:
 
-## 1. Database (migration)
+- `status = "made"`, `video_id = "KZf5_hgchyI"` (57k views, valid)
+- `views / subs_gained / outlier_score` are all still `null`
 
-New table `public.teardown_chats`:
-- `id uuid pk`
-- `user_id uuid not null` (owner, RLS-scoped)
-- `channel_id text not null` (YouTube channel id from the teardown route)
-- `role text` check in (`user`, `assistant`)
-- `content text`
-- `created_at timestamptz default now()`
-- index on `(user_id, channel_id, created_at)`
+I confirmed the YouTube API returns proper stats for that video ID and the cache has never been populated for it. So the numbers are missing for one reason: **the "made → measured" step only runs when you click "Refresh stats"**, and that click hasn't happened yet for this row. Nothing is broken — it just hasn't been asked to fetch.
 
-Standard grants + RLS: user can select/insert/delete only their own rows (`auth.uid() = user_id`). No anon access.
+Clicking **Refresh stats** right now will fill in views, subs gained, and outlier. But requiring a manual click for every new video is bad UX and is exactly why it looks "not giving any result".
 
-## 2. Web search connector
+# Fix
 
-Web search will use **Firecrawl** (Lovable's default web connector), called server-side. The workspace does not have a Firecrawl connection linked yet, so the plan will prompt to connect Firecrawl when the chat backend is wired. No API key input needed from the user — it's a one-click connector link.
+Make measurement automatic when a concept is marked as made, and make refresh feedback louder.
 
-## 3. Server: `src/lib/teardown-chat.functions.ts`
+## Changes
 
-Three auth-protected server functions (all `.middleware([requireSupabaseAuth])`):
+1. `src/lib/plan.functions.ts` — `markConceptMade`
+   - After the UPDATE to `status = "made"`, immediately fetch the video via `getVideoById(vid)` and, if found, write `views`, `outlier_score`, `subs_gained`, `measured_at`, and flip status to `"measured"` in the same request.
+   - Wrap in try/catch so a YouTube API hiccup still leaves the row as `"made"` (the manual refresh remains as a fallback).
+   - Return `{ ok: true, measured: boolean }` so the client can toast "Marked and measured" vs "Marked — will measure on next refresh".
 
-- `listTeardownMessages({ channel_id })` — returns the user's saved messages for that channel, oldest first.
-- `clearTeardownMessages({ channel_id })` — deletes the thread (for a "Clear chat" button).
-- `sendTeardownMessage({ channel_id, message })` — the main handler:
-  1. Load cached teardown row from `cached_research` for `channel_id` (channel_name, subs, teardown_json, outlier_videos_json). Fail gracefully if missing ("Run the teardown first").
-  2. Load prior messages from `teardown_chats` for this user + channel.
-  3. Insert the new user message.
-  4. Call Lovable AI Gateway (`google/gemini-3-flash-preview`) via `@ai-sdk/openai-compatible` + `generateText` with:
-     - System prompt: role = YouTube growth analyst; here is the teardown JSON + top outliers for `<channel_name>`; use the `web_search` tool when the user asks about current events, virality reasons, recent news, or anything outside the teardown; cite sources inline as `[domain](url)` when web is used.
-     - Full message history + new user message.
-     - A single `web_search` tool defined with `tool()` + Zod input `{ query: string }`, `execute` calls Firecrawl `search` (limit 5, markdown scrape) via `FIRECRAWL_API_KEY`, returns compact `[{title,url,snippet}]`.
-     - `stopWhen: stepCountIs(50)`.
-  5. Insert the assistant reply. Return `{ reply, usedWebSearch: boolean, sources: [...] }`.
+2. `src/lib/plan.functions.ts` — `measureMyOutcomes`
+   - When it processes a row but `getVideoById` returns `null` (deleted / private / typo), log that specific outcome id and include a `skipped: number` count in the return value.
+   - Return `{ measured, skipped }`.
 
-Non-streaming (simpler, matches the existing teardown page pattern that already uses `useQuery` + `useServerFn`). Errors (429 rate limit, 402 credits, Firecrawl failures) surface as toast messages.
+3. `src/routes/_authenticated/results.tsx`
+   - Update the toast to include skipped: `Measured X · Skipped Y` when `skipped > 0`, and switch to an error toast when `measured === 0 && rows > 0`.
 
-## 4. UI: `src/components/TeardownChat.tsx`
+4. Plan page (wherever `markConceptMade` is called) — surface the new `measured` flag in the success toast. No behavior change if it's already generic.
 
-New component, rendered as the last section on `src/routes/_authenticated/teardown.$channelId.tsx`:
+## Not changing
 
-- Section header "Ask about this channel" with a small "Clear" button.
-- Message list styled with the existing `surface-card` system:
-  - User messages: right-aligned bubble using `bg-primary text-primary-foreground`.
-  - Assistant messages: no bubble, rendered as markdown via `react-markdown` + `remark-gfm` (install if missing) so links from web search render.
-  - If assistant used web search, show a small "Sources" row with domain chips linking out.
-- Empty state suggests example prompts: "Why is this channel growing?", "What's their best-performing hook?", "Why did their latest video blow up?" (clicking fills the input).
-- Composer: `<Textarea>` + `<Button>` submit; Enter to send, Shift+Enter for newline; disabled while awaiting reply; shows a "Thinking…" shimmer row.
-- Data: `useQuery(["teardown-chat", channelId], listTeardownMessages)` for history; `useMutation(sendTeardownMessage)` optimistically appends the user message and invalidates the query on success.
+- Database schema, RLS, or the YouTube cache layer.
+- The manual "Refresh stats" button (kept as a safety net for older rows and for view-count updates over time).
+- The teardown chat feature.
 
-Mobile responsive; textarea autofocuses after each reply.
+## After deploying
 
-## 5. Wire-up
-
-- `src/routes/_authenticated/teardown.$channelId.tsx`: import and render `<TeardownChat channelId={channelId} channelName={data.channel_name} />` after the outliers section.
-- No changes to the existing teardown fetch or cache.
-
-## Technical notes
-
-- Chat only shows on the teardown page. History is scoped to `(user_id, channel_id)` — switching projects or channels shows the right thread automatically.
-- The AI does not re-run the teardown; it reads from the `cached_research` row that already exists.
-- `LOVABLE_API_KEY` is already provisioned. `FIRECRAWL_API_KEY` will be injected once the Firecrawl connector is linked in build step.
-- No new tables besides `teardown_chats`. No schema changes to `cached_research`.
-- Follows the existing `surface-card` / `brand-gradient` design tokens — no hardcoded colors.
-
-## Out of scope
-
-- Streaming responses (can add later with `streamText` + a chat API route if desired).
-- Cross-channel chat / a global assistant.
-- Editing or branching past messages.
+Existing row `92abb938…` will still be `"made"` with null metrics until you click **Refresh stats** once. All new "mark as made" actions will populate metrics instantly.

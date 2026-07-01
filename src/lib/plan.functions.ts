@@ -181,21 +181,65 @@ export const markConceptMade = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => MarkMadeInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { parseYouTubeVideoId } = await import("./youtube.server");
+    const { parseYouTubeVideoId, getVideoById, getChannelById } = await import("./youtube.server");
     const vid = parseYouTubeVideoId(data.video_url);
     if (!vid) throw new Error("That doesn't look like a YouTube video URL.");
+
+    const nowIso = new Date().toISOString();
+    type OutcomeUpdate = {
+      status: "made" | "measured";
+      video_url: string;
+      video_id: string;
+      marked_made_at: string;
+      views?: number;
+      outlier_score?: number | null;
+      subs_gained?: number;
+      measured_at?: string;
+    };
+    const baseUpdate: OutcomeUpdate = {
+      status: "made",
+      video_url: data.video_url.trim(),
+      video_id: vid,
+      marked_made_at: nowIso,
+    };
+
+    // Try to measure immediately so the Results page isn't empty.
+    let measured = false;
+    try {
+      const project = await getActiveProject(supabase, userId);
+      const v = await getVideoById(vid);
+      if (v && project) {
+        let currentSubs = project.subscriber_count ?? 0;
+        if (project.channel_id) {
+          try {
+            const refreshed = await getChannelById(project.channel_id);
+            if (refreshed) currentSubs = refreshed.subscriberCount;
+          } catch {}
+        }
+        const subsAtMade = project.subscriber_count ?? 0;
+        const outlier = currentSubs > 0 ? Number((v.viewCount / Math.max(1, currentSubs)).toFixed(2)) : null;
+        baseUpdate.status = "measured";
+        baseUpdate.views = v.viewCount;
+        baseUpdate.outlier_score = outlier;
+        baseUpdate.subs_gained = Math.max(0, currentSubs - subsAtMade);
+        baseUpdate.measured_at = nowIso;
+        measured = true;
+        if (project.channel_id && currentSubs !== project.subscriber_count) {
+          await supabase.from("projects").update({ subscriber_count: currentSubs }).eq("id", project.id);
+        }
+      }
+    } catch (e) {
+      console.error("auto-measure on markConceptMade failed", e);
+    }
+
+
     const { error } = await supabase
       .from("concept_outcomes")
-      .update({
-        status: "made",
-        video_url: data.video_url.trim(),
-        video_id: vid,
-        marked_made_at: new Date().toISOString(),
-      })
+      .update(baseUpdate)
       .eq("id", data.outcome_id)
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, measured };
   });
 
 export const getOutcomes = createServerFn({ method: "GET" })
@@ -219,14 +263,14 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
     const project = await getActiveProject(supabase, userId);
-    if (!project) return { measured: 0 };
+    if (!project) return { measured: 0, skipped: 0 };
     const { data: rows } = await supabase
       .from("concept_outcomes")
       .select("*")
       .eq("project_id", project.id)
       .eq("user_id", userId)
       .in("status", ["made", "measured"]);
-    if (!rows?.length) return { measured: 0 };
+    if (!rows?.length) return { measured: 0, skipped: 0 };
 
     const { getVideoById, getChannelById } = await import("./youtube.server");
     let currentSubs = project.subscriber_count ?? 0;
@@ -238,11 +282,16 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
     }
 
     let measured = 0;
+    let skipped = 0;
     for (const r of rows as any[]) {
-      if (!r.video_id) continue;
+      if (!r.video_id) { skipped++; continue; }
       try {
         const v = await getVideoById(r.video_id);
-        if (!v) continue;
+        if (!v) {
+          console.warn("measure: video not found", { outcome_id: r.id, video_id: r.video_id });
+          skipped++;
+          continue;
+        }
         const subsAtMade = r.subs_gained == null ? (project.subscriber_count ?? 0) : (r.subs_gained ?? 0);
         const outlier = currentSubs > 0 ? Number((v.viewCount / Math.max(1, currentSubs)).toFixed(2)) : null;
         await supabase
@@ -258,10 +307,11 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
         measured++;
       } catch (e) {
         console.error("measure failed", r.id, e);
+        skipped++;
       }
     }
     if (project.channel_id && currentSubs !== project.subscriber_count) {
       await supabase.from("projects").update({ subscriber_count: currentSubs }).eq("id", project.id);
     }
-    return { measured };
+    return { measured, skipped };
   });
