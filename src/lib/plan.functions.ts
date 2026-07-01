@@ -186,7 +186,17 @@ export const markConceptMade = createServerFn({ method: "POST" })
     if (!vid) throw new Error("That doesn't look like a YouTube video URL.");
 
     const nowIso = new Date().toISOString();
-    const baseUpdate: Record<string, unknown> = {
+    type OutcomeUpdate = {
+      status: "made" | "measured";
+      video_url: string;
+      video_id: string;
+      marked_made_at: string;
+      views?: number;
+      outlier_score?: number | null;
+      subs_gained?: number;
+      measured_at?: string;
+    };
+    const baseUpdate: OutcomeUpdate = {
       status: "made",
       video_url: data.video_url.trim(),
       video_id: vid,
@@ -221,6 +231,7 @@ export const markConceptMade = createServerFn({ method: "POST" })
     } catch (e) {
       console.error("auto-measure on markConceptMade failed", e);
     }
+
 
     const { error } = await supabase
       .from("concept_outcomes")
