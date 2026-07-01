@@ -114,6 +114,8 @@ function TeardownPage() {
           </Button>
         </div>
       </section>
+
+      <TeardownChat channelId={channelId} channelName={data.channel_name} />
     </div>
   );
 }
