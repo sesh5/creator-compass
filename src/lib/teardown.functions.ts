@@ -91,7 +91,7 @@ export const getTeardown = createServerFn({ method: "POST" })
 
     // AI teardown
     const { createLovableAi, DEFAULT_MODEL } = await import("./ai-gateway.server");
-    const { generateText } = await import("ai");
+    const { generateObject } = await import("ai");
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
     const ai = createLovableAi(apiKey);
@@ -103,10 +103,31 @@ export const getTeardown = createServerFn({ method: "POST" })
       )
       .join("\n");
 
-    const prompt = `You are a YouTube growth strategist analysing the channel "${channel.title}" (${channel.subscriberCount.toLocaleString()} subs).\n\nRecent videos (sorted best-to-worst by outlier score = views ÷ subscriber count):\n${videosForPrompt}\n\nReturn ONLY strict minified JSON with this exact shape:\n{\n  "why_winning": "2-3 short sentences on what's clearly working",\n  "cadence": "e.g. 2x/week, weekly, sporadic",\n  "hook_style": "1 sentence on how titles/thumbs hook viewers",\n  "title_patterns": "1-2 sentences on patterns you see",\n  "thumbnail_approach": "1 sentence on thumbnail style",\n  "typical_length": "e.g. 8-12 min",\n  "content_pillars": ["pillar 1","pillar 2","pillar 3"],\n  "best_video": {"video_id":"<id>","title":"<title>","views":<int>,"why":"why it worked"},\n  "worst_video": {"video_id":"<id>","title":"<title>","views":<int>,"why":"why it underperformed"}\n}\nNo markdown, no commentary, JSON only.`;
+    const videoSchema = z.object({
+      video_id: z.string(),
+      title: z.string(),
+      views: z.number().int(),
+      why: z.string(),
+    });
+    const teardownSchema = z.object({
+      why_winning: z.string(),
+      cadence: z.string(),
+      hook_style: z.string(),
+      title_patterns: z.string(),
+      thumbnail_approach: z.string(),
+      typical_length: z.string(),
+      content_pillars: z.array(z.string()),
+      best_video: videoSchema,
+      worst_video: videoSchema,
+    });
 
-    const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
-    const teardown = extractJson(text) as Teardown;
+    const prompt = `You are a YouTube growth strategist analysing the channel "${channel.title}" (${channel.subscriberCount.toLocaleString()} subs).\n\nRecent videos (sorted best-to-worst by outlier score = views ÷ subscriber count):\n${videosForPrompt}\n\nProduce a concise teardown. content_pillars should have 3 items. best_video/worst_video video_id must be one of the ids above.`;
+
+    const { object: teardown } = await generateObject({
+      model: ai(DEFAULT_MODEL),
+      schema: teardownSchema,
+      prompt,
+    });
 
     const row = {
       channel_id: channel.id,
