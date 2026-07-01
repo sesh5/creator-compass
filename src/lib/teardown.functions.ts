@@ -4,6 +4,26 @@ import { z } from "zod";
 
 const Input = z.object({ channel_id: z.string().min(1).max(64), force: z.boolean().optional() });
 
+function extractJson(response: string): unknown {
+  let cleaned = response.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = cleaned.search(/[\{\[]/);
+  const openChar = start !== -1 ? cleaned[start] : "";
+  const endChar = openChar === "[" ? "]" : "}";
+  const end = cleaned.lastIndexOf(endChar);
+  if (start === -1 || end === -1) throw new Error("No JSON found in AI response");
+  cleaned = cleaned.substring(start, end + 1);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const fixed = cleaned
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+      .replace(/([{,]\s*"[^"]+"\s*:\s*")((?:[^"\\]|\\.)*?)(?<!\\)\n((?:[^"\\]|\\.)*?)"/g, '$1$2\\n$3"');
+    return JSON.parse(fixed);
+  }
+}
+
 export type Teardown = {
   why_winning: string;
   cadence: string;
@@ -86,9 +106,7 @@ export const getTeardown = createServerFn({ method: "POST" })
     const prompt = `You are a YouTube growth strategist analysing the channel "${channel.title}" (${channel.subscriberCount.toLocaleString()} subs).\n\nRecent videos (sorted best-to-worst by outlier score = views ÷ subscriber count):\n${videosForPrompt}\n\nReturn ONLY strict minified JSON with this exact shape:\n{\n  "why_winning": "2-3 short sentences on what's clearly working",\n  "cadence": "e.g. 2x/week, weekly, sporadic",\n  "hook_style": "1 sentence on how titles/thumbs hook viewers",\n  "title_patterns": "1-2 sentences on patterns you see",\n  "thumbnail_approach": "1 sentence on thumbnail style",\n  "typical_length": "e.g. 8-12 min",\n  "content_pillars": ["pillar 1","pillar 2","pillar 3"],\n  "best_video": {"video_id":"<id>","title":"<title>","views":<int>,"why":"why it worked"},\n  "worst_video": {"video_id":"<id>","title":"<title>","views":<int>,"why":"why it underperformed"}\n}\nNo markdown, no commentary, JSON only.`;
 
     const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("AI returned no JSON");
-    const teardown = JSON.parse(match[0]) as Teardown;
+    const teardown = extractJson(text) as Teardown;
 
     const row = {
       channel_id: channel.id,
