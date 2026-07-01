@@ -291,7 +291,7 @@ export const measureMyOutcomes = createServerFn({ method: "POST" })
     for (const r of rows as any[]) {
       if (!r.video_id) { skipped++; continue; }
       try {
-        const v = await getVideoById(r.video_id);
+        const v = await getVideoById(r.video_id, { fresh: true });
         if (!v) {
           console.warn("measure: video not found", { outcome_id: r.id, video_id: r.video_id });
           skipped++;
