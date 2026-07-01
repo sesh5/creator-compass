@@ -5,6 +5,7 @@ import { getTeardown } from "@/lib/teardown.functions";
 import { PageHeader, formatNumber } from "@/components/Primitives";
 import { Button } from "@/components/ui/button";
 import { Loader2, ExternalLink, TrendingUp, TrendingDown, FileText } from "lucide-react";
+import { TeardownChat } from "@/components/TeardownChat";
 
 export const Route = createFileRoute("/_authenticated/teardown/$channelId")({
   head: () => ({ meta: [{ title: "Channel teardown — CreatorArena" }, { name: "robots", content: "noindex" }] }),
