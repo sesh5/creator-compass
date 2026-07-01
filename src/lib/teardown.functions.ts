@@ -4,6 +4,26 @@ import { z } from "zod";
 
 const Input = z.object({ channel_id: z.string().min(1).max(64), force: z.boolean().optional() });
 
+function extractJson(response: string): unknown {
+  let cleaned = response.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const start = cleaned.search(/[\{\[]/);
+  const openChar = start !== -1 ? cleaned[start] : "";
+  const endChar = openChar === "[" ? "]" : "}";
+  const end = cleaned.lastIndexOf(endChar);
+  if (start === -1 || end === -1) throw new Error("No JSON found in AI response");
+  cleaned = cleaned.substring(start, end + 1);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const fixed = cleaned
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+      .replace(/([{,]\s*"[^"]+"\s*:\s*")((?:[^"\\]|\\.)*?)(?<!\\)\n((?:[^"\\]|\\.)*?)"/g, '$1$2\\n$3"');
+    return JSON.parse(fixed);
+  }
+}
+
 export type Teardown = {
   why_winning: string;
   cadence: string;
