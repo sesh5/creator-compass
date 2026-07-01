@@ -41,7 +41,12 @@ function PlanPage() {
     mutationFn: (v: { outcome_id: string; video_url: string }) => markFn({ data: v }),
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["outcomes"] });
-      toast.success(r.measured ? "Locked in — stats are live on Results." : "Locked in. We'll measure it shortly.");
+      const title = r.video_title ? `"${r.video_title}"` : "your video";
+      toast.success(
+        r.measured
+          ? `Locked in: ${title} — stats are live on Results.`
+          : `Locked in: ${title}. We'll measure it shortly.`,
+      );
     },
     onError: (e: any) => toast.error(e?.message ?? "Failed"),
   });

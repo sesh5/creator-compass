@@ -28,9 +28,11 @@ async function writeCache(key: string, payload: unknown) {
   await sb.from("youtube_api_cache").upsert({ cache_key: key, payload: payload as never, fetched_at: new Date().toISOString() });
 }
 
-async function ytFetch<T = unknown>(path: string, params: Record<string, string>, cacheKey: string, ttlMs: number): Promise<T> {
-  const cached = await readCache(cacheKey, ttlMs);
-  if (cached) return cached as T;
+async function ytFetch<T = unknown>(path: string, params: Record<string, string>, cacheKey: string, ttlMs: number, opts?: { fresh?: boolean }): Promise<T> {
+  if (!opts?.fresh) {
+    const cached = await readCache(cacheKey, ttlMs);
+    if (cached) return cached as T;
+  }
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) throw new Error("YOUTUBE_API_KEY is not configured");
   const url = new URL(`${YT_BASE}/${path}`);
@@ -261,12 +263,13 @@ export async function getRecentVideos(channel: YtChannel, max = 20): Promise<YtV
   }));
 }
 
-export async function getVideoById(id: string): Promise<YtVideo | null> {
+export async function getVideoById(id: string, opts?: { fresh?: boolean }): Promise<YtVideo | null> {
   const data = await ytFetch<{ items: any[] }>(
     "videos",
     { part: "snippet,statistics,contentDetails", id },
     `video:${id}`,
     1000 * 60 * 60 * 2,
+    opts,
   );
   const it = data.items?.[0];
   if (!it) return null;
