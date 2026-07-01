@@ -263,12 +263,13 @@ export async function getRecentVideos(channel: YtChannel, max = 20): Promise<YtV
   }));
 }
 
-export async function getVideoById(id: string): Promise<YtVideo | null> {
+export async function getVideoById(id: string, opts?: { fresh?: boolean }): Promise<YtVideo | null> {
   const data = await ytFetch<{ items: any[] }>(
     "videos",
     { part: "snippet,statistics,contentDetails", id },
     `video:${id}`,
     1000 * 60 * 60 * 2,
+    opts,
   );
   const it = data.items?.[0];
   if (!it) return null;
