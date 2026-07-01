@@ -13,7 +13,26 @@ import { SubsEditor } from "@/components/SubsEditor";
 
 
 export const Route = createFileRoute("/_authenticated/discover")({
-  head: () => ({ meta: [{ title: "Discover competitors — CreatorArena" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [
+      { title: "Discover competitors — CreatorArena" },
+      {
+        name: "description",
+        content:
+          "Find achievable YouTube competitors in your niche — channels 2–5x your size — to benchmark against and pull outlier ideas from.",
+      },
+      { property: "og:title", content: "Discover competitors — CreatorArena" },
+      {
+        property: "og:description",
+        content:
+          "Spot achievable YouTube competitors in your niche and add them to your watchlist to power your weekly plan.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://creatorarena.lovable.app/discover" },
+      { name: "robots", content: "noindex" },
+    ],
+    links: [{ rel: "canonical", href: "https://creatorarena.lovable.app/discover" }],
+  }),
   component: Discover,
 });
 

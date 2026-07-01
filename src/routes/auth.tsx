@@ -11,10 +11,23 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — CreatorArena" },
-      { name: "description", content: "Sign in to CreatorArena." },
+      { title: "Sign in to CreatorArena" },
+      {
+        name: "description",
+        content:
+          "Sign in or create a free CreatorArena account to plan your next YouTube video and track whether it grew your channel.",
+      },
+      { property: "og:title", content: "Sign in to CreatorArena" },
+      {
+        property: "og:description",
+        content:
+          "Access your CreatorArena workspace to get AI-generated video concepts and outcome tracking for your channel.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://creatorarena.lovable.app/auth" },
       { name: "robots", content: "noindex" },
     ],
+    links: [{ rel: "canonical", href: "https://creatorarena.lovable.app/auth" }],
   }),
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
@@ -82,7 +95,7 @@ function AuthPage() {
           CreatorArena
         </div>
         <h1 className="font-display text-2xl font-bold mt-4">
-          {mode === "signin" ? "Welcome back" : "Start growing your channel"}
+          {mode === "signin" ? "Sign in to CreatorArena" : "Create your CreatorArena account"}
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           {mode === "signin" ? "Sign in to see what to make next." : "Free to start. No credit card."}

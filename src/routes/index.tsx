@@ -17,6 +17,45 @@ export const Route = createFileRoute("/")({
         property: "og:description",
         content: "Built for creators 0–1,000 subs. Get told what video to make next, then find out if it worked.",
       },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://creatorarena.lovable.app/" },
+    ],
+    links: [{ rel: "canonical", href: "https://creatorarena.lovable.app/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "CreatorArena",
+          url: "https://creatorarena.lovable.app/",
+          description:
+            "AI co-pilot for new YouTube creators. Plan the next video, then measure if it worked.",
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "CreatorArena",
+          url: "https://creatorarena.lovable.app/",
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "CreatorArena",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web",
+          url: "https://creatorarena.lovable.app/",
+          description:
+            "AI co-pilot that watches your niche, tells you exactly what video to film this week, and tracks whether each video grew your channel.",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        }),
+      },
     ],
   }),
   beforeLoad: async () => {
@@ -80,7 +119,7 @@ function Landing() {
               <div className="w-10 h-10 grid place-items-center rounded-lg brand-gradient mb-4">
                 <Icon className="w-5 h-5" />
               </div>
-              <h3 className="font-display text-lg font-semibold">{f.title}</h3>
+              <h2 className="font-display text-lg font-semibold">{f.title}</h2>
               <p className="mt-2 text-sm text-muted-foreground">{f.body}</p>
             </div>
           );

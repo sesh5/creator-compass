@@ -9,7 +9,26 @@ import { toast } from "sonner";
 import { useEffect, useMemo, useRef } from "react";
 
 export const Route = createFileRoute("/_authenticated/results")({
-  head: () => ({ meta: [{ title: "Results — CreatorArena" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [
+      { title: "Results — CreatorArena" },
+      {
+        name: "description",
+        content:
+          "Track how each video you shipped actually performed — views, subs gained, and outlier score against your baseline — so the AI keeps learning what works.",
+      },
+      { property: "og:title", content: "Results — CreatorArena" },
+      {
+        property: "og:description",
+        content:
+          "See views, subs gained, and outlier scores for every video you've marked as made.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://creatorarena.lovable.app/results" },
+      { name: "robots", content: "noindex" },
+    ],
+    links: [{ rel: "canonical", href: "https://creatorarena.lovable.app/results" }],
+  }),
   component: ResultsPage,
 });
 

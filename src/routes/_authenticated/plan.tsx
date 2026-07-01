@@ -13,7 +13,26 @@ import { useState } from "react";
 import type { Concept, IdeaAnalysis } from "@/lib/plan.functions";
 
 export const Route = createFileRoute("/_authenticated/plan")({
-  head: () => ({ meta: [{ title: "What to make next — CreatorArena" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [
+      { title: "What to make next — CreatorArena" },
+      {
+        name: "description",
+        content:
+          "Your AI-generated weekly plan: five concrete YouTube video concepts with hooks, titles, thumbnail briefs and target keywords, ranked by what's outperforming in your niche.",
+      },
+      { property: "og:title", content: "What to make next — CreatorArena" },
+      {
+        property: "og:description",
+        content:
+          "AI-generated weekly YouTube content plan with hooks, titles, thumbnails and target keywords, tuned to your niche.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://creatorarena.lovable.app/plan" },
+      { name: "robots", content: "noindex" },
+    ],
+    links: [{ rel: "canonical", href: "https://creatorarena.lovable.app/plan" }],
+  }),
   component: PlanPage,
 });
 
@@ -128,7 +147,7 @@ function ConceptCard({ concept, index, outcome, onMark }: { concept: Concept; in
           <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground border">{concept.target_keyword}</span>
           {isMade && <span className="text-xs px-2 py-0.5 rounded-full bg-success/15 text-success font-semibold">Made ✓</span>}
         </div>
-        <Button size="sm" variant="ghost" onClick={copy}>
+        <Button size="sm" variant="ghost" onClick={copy} aria-label="Copy concept details">
           {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
         </Button>
       </div>
