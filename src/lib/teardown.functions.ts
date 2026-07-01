@@ -86,9 +86,7 @@ export const getTeardown = createServerFn({ method: "POST" })
     const prompt = `You are a YouTube growth strategist analysing the channel "${channel.title}" (${channel.subscriberCount.toLocaleString()} subs).\n\nRecent videos (sorted best-to-worst by outlier score = views ÷ subscriber count):\n${videosForPrompt}\n\nReturn ONLY strict minified JSON with this exact shape:\n{\n  "why_winning": "2-3 short sentences on what's clearly working",\n  "cadence": "e.g. 2x/week, weekly, sporadic",\n  "hook_style": "1 sentence on how titles/thumbs hook viewers",\n  "title_patterns": "1-2 sentences on patterns you see",\n  "thumbnail_approach": "1 sentence on thumbnail style",\n  "typical_length": "e.g. 8-12 min",\n  "content_pillars": ["pillar 1","pillar 2","pillar 3"],\n  "best_video": {"video_id":"<id>","title":"<title>","views":<int>,"why":"why it worked"},\n  "worst_video": {"video_id":"<id>","title":"<title>","views":<int>,"why":"why it underperformed"}\n}\nNo markdown, no commentary, JSON only.`;
 
     const { text } = await generateText({ model: ai(DEFAULT_MODEL), prompt });
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("AI returned no JSON");
-    const teardown = JSON.parse(match[0]) as Teardown;
+    const teardown = extractJson(text) as Teardown;
 
     const row = {
       channel_id: channel.id,
