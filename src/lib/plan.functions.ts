@@ -181,21 +181,54 @@ export const markConceptMade = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => MarkMadeInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { parseYouTubeVideoId } = await import("./youtube.server");
+    const { parseYouTubeVideoId, getVideoById, getChannelById } = await import("./youtube.server");
     const vid = parseYouTubeVideoId(data.video_url);
     if (!vid) throw new Error("That doesn't look like a YouTube video URL.");
+
+    const nowIso = new Date().toISOString();
+    const baseUpdate: Record<string, unknown> = {
+      status: "made",
+      video_url: data.video_url.trim(),
+      video_id: vid,
+      marked_made_at: nowIso,
+    };
+
+    // Try to measure immediately so the Results page isn't empty.
+    let measured = false;
+    try {
+      const project = await getActiveProject(supabase, userId);
+      const v = await getVideoById(vid);
+      if (v && project) {
+        let currentSubs = project.subscriber_count ?? 0;
+        if (project.channel_id) {
+          try {
+            const refreshed = await getChannelById(project.channel_id);
+            if (refreshed) currentSubs = refreshed.subscriberCount;
+          } catch {}
+        }
+        const subsAtMade = project.subscriber_count ?? 0;
+        const outlier = currentSubs > 0 ? Number((v.viewCount / Math.max(1, currentSubs)).toFixed(2)) : null;
+        baseUpdate.status = "measured";
+        baseUpdate.views = v.viewCount;
+        baseUpdate.outlier_score = outlier;
+        baseUpdate.subs_gained = Math.max(0, currentSubs - subsAtMade);
+        baseUpdate.measured_at = nowIso;
+        measured = true;
+        if (project.channel_id && currentSubs !== project.subscriber_count) {
+          await supabase.from("projects").update({ subscriber_count: currentSubs }).eq("id", project.id);
+        }
+      }
+    } catch (e) {
+      console.error("auto-measure on markConceptMade failed", e);
+    }
+
     const { error } = await supabase
       .from("concept_outcomes")
-      .update({
-        status: "made",
-        video_url: data.video_url.trim(),
-        video_id: vid,
-        marked_made_at: new Date().toISOString(),
-      })
+      .update(baseUpdate)
       .eq("id", data.outcome_id)
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
-    return { ok: true };
+    return { ok: true, measured };
   });
 
 export const getOutcomes = createServerFn({ method: "GET" })
