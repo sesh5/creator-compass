@@ -203,12 +203,18 @@ export const markConceptMade = createServerFn({ method: "POST" })
       marked_made_at: nowIso,
     };
 
-    // Try to measure immediately so the Results page isn't empty.
+    // Verify the video actually exists on YouTube before saving anything.
+    const v = await getVideoById(vid);
+    if (!v) {
+      throw new Error("We couldn't find that video on YouTube. Double-check the URL — it needs to be a public video you own.");
+    }
+
+    // Measure immediately so the Results page isn't empty.
     let measured = false;
+    let videoTitle: string = v.title;
     try {
       const project = await getActiveProject(supabase, userId);
-      const v = await getVideoById(vid);
-      if (v && project) {
+      if (project) {
         let currentSubs = project.subscriber_count ?? 0;
         if (project.channel_id) {
           try {
@@ -232,14 +238,13 @@ export const markConceptMade = createServerFn({ method: "POST" })
       console.error("auto-measure on markConceptMade failed", e);
     }
 
-
     const { error } = await supabase
       .from("concept_outcomes")
       .update(baseUpdate)
       .eq("id", data.outcome_id)
       .eq("user_id", userId);
     if (error) throw new Error(error.message);
-    return { ok: true, measured };
+    return { ok: true, measured, video_title: videoTitle };
   });
 
 export const getOutcomes = createServerFn({ method: "GET" })
