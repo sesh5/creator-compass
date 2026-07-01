@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader, EmptyState, formatNumber } from "@/components/Primitives";
 import { Trophy, RefreshCw, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 export const Route = createFileRoute("/_authenticated/results")({
   head: () => ({ meta: [{ title: "Results — CreatorArena" }, { name: "robots", content: "noindex" }] }),
