@@ -1,0 +1,9 @@
+# CreatorArena
+
+> AI co-pilot for new YouTube creators (0–1,000 subs). Watches what's outperforming in your niche, tells you exactly what to film this week, and tracks whether each video actually grew your channel.
+
+CreatorArena turns competitor intelligence into a concrete weekly content plan — five video concepts with hooks, titles, thumbnail briefs, and target keywords — then measures whether each shipped video grew the channel so the AI keeps learning what works for that creator.
+
+## Pages
+
+- [Home](/): Product overview, who it's for, and how the weekly plan → measurement loop works.

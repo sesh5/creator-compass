@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /discover
+Disallow: /plan
+Disallow: /results
+Disallow: /projects
+Disallow: /analytics
+Disallow: /onboarding
+Disallow: /teardown/
+Disallow: /auth
+
+Sitemap: https://creatorarena.lovable.app/sitemap.xml
