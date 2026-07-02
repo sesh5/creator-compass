@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
+import { getSettledSession } from "@/integrations/supabase/session";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Compass, FileText, Trophy, ArrowRight } from "lucide-react";
 
@@ -59,10 +59,10 @@ export const Route = createFileRoute("/")({
     ],
   }),
   beforeLoad: async () => {
-    // If signed in, jump to discover
+    // If signed in (or just returned from an OAuth redirect), jump to discover.
     if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/discover" });
+    const session = await getSettledSession();
+    if (session) throw redirect({ to: "/discover" });
   },
   component: Landing,
 });
@@ -115,7 +115,7 @@ function Landing() {
         ].map((f) => {
           const Icon = f.icon;
           return (
-            <div key={f.title} className="surface-card p-6">
+            <div key={f.title} className="surface-card surface-card-hover p-6">
               <div className="w-10 h-10 grid place-items-center rounded-lg brand-gradient mb-4">
                 <Icon className="w-5 h-5" />
               </div>
