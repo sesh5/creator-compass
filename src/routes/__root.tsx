@@ -129,10 +129,11 @@ function RootComponent() {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       if (event === "SIGNED_OUT") {
-        // Stop in-flight protected queries before they 401 and blank the screen.
+        // Cancel in-flight protected queries and navigate away BEFORE invalidating,
+        // so protected loaders don't re-fire with no bearer token and 401 the app.
         await queryClient.cancelQueries();
         queryClient.clear();
-        router.invalidate();
+        await router.navigate({ to: "/auth", replace: true });
         return;
       }
       router.invalidate();
