@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getSettledSession } from "@/integrations/supabase/session";
 import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,8 +32,8 @@ export const Route = createFileRoute("/auth")({
   }),
   beforeLoad: async () => {
     if (typeof window === "undefined") return;
-    const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/discover" });
+    const session = await getSettledSession();
+    if (session) throw redirect({ to: "/discover" });
   },
   component: AuthPage,
 });
@@ -66,12 +67,20 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
+        // When email confirmation is on, signUp succeeds but returns no session.
+        // Don't pretend the user is in — send them to confirm, then sign in.
+        if (!data.session) {
+          toast.success("Almost there — check your email to confirm your account, then sign in.");
+          setMode("signin");
+          setPassword("");
+          return;
+        }
         toast.success("Account created. You're in!");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });

@@ -24,13 +24,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
   const profileFn = useServerFn(getMyProfile);
   const { data: profile } = useQuery({ queryKey: ["profile"], queryFn: () => profileFn() });
 
   useEffect(() => {
+    // Dark by default; only an explicit "light" choice opts out (matches the
+    // no-flash script in the root shell).
     const saved = localStorage.getItem("ca-theme");
-    const isDark = saved === "dark" || (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const isDark = saved !== "light";
     setDark(isDark);
     document.documentElement.classList.toggle("dark", isDark);
     setCollapsed(localStorage.getItem("ca-sidebar-collapsed") === "1");

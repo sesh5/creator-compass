@@ -35,7 +35,7 @@
   --color-ring: var(--ring);
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Bricolage Grotesque", "Inter", ui-sans-serif, system-ui, sans-serif;
-  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.04), 0 8px 24px -12px oklch(0 0 0 / 0.08);
+  --shadow-card: var(--card-shadow);
   --shadow-pop: 0 8px 32px -8px oklch(0.62 0.21 35 / 0.35);
   --gradient-warm: linear-gradient(135deg, oklch(0.72 0.20 40), oklch(0.66 0.22 18));
   --gradient-cool: linear-gradient(135deg, oklch(0.55 0.18 260), oklch(0.62 0.21 35));
@@ -66,43 +66,79 @@
   --border: oklch(0.92 0.01 80);
   --input: oklch(0.94 0.01 80);
   --ring: oklch(0.65 0.22 30);
+  --card-shadow: 0 1px 2px oklch(0 0 0 / 0.04), 0 8px 24px -12px oklch(0 0 0 / 0.08);
+  --ambient: transparent;
 }
 
 .dark {
-  --background: oklch(0.16 0.03 265);
-  --foreground: oklch(0.97 0.01 80);
-  --card: oklch(0.21 0.035 265);
-  --card-foreground: oklch(0.97 0.01 80);
-  --popover: oklch(0.21 0.035 265);
-  --popover-foreground: oklch(0.97 0.01 80);
-  --primary: oklch(0.72 0.20 35);
-  --primary-foreground: oklch(0.15 0.03 265);
-  --secondary: oklch(0.26 0.03 265);
-  --secondary-foreground: oklch(0.97 0.01 80);
-  --muted: oklch(0.24 0.025 265);
-  --muted-foreground: oklch(0.7 0.02 265);
-  --accent: oklch(0.3 0.05 35);
-  --accent-foreground: oklch(0.97 0.01 80);
-  --success: oklch(0.7 0.16 155);
-  --success-foreground: oklch(0.15 0.03 265);
-  --warning: oklch(0.78 0.17 85);
-  --warning-foreground: oklch(0.15 0.03 265);
-  --destructive: oklch(0.68 0.2 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  --border: oklch(0.28 0.02 265);
-  --input: oklch(0.26 0.025 265);
-  --ring: oklch(0.72 0.20 35);
+  /* Deep, slightly warm near-black — cohesive with the brand's orange accent */
+  --background: oklch(0.15 0.012 280);
+  --foreground: oklch(0.96 0.008 80);
+  --card: oklch(0.195 0.015 280);
+  --card-foreground: oklch(0.96 0.008 80);
+  --popover: oklch(0.185 0.015 280);
+  --popover-foreground: oklch(0.96 0.008 80);
+  --primary: oklch(0.72 0.20 38);
+  --primary-foreground: oklch(0.14 0.02 280);
+  --secondary: oklch(0.25 0.018 280);
+  --secondary-foreground: oklch(0.96 0.008 80);
+  --muted: oklch(0.22 0.014 280);
+  --muted-foreground: oklch(0.68 0.015 280);
+  --accent: oklch(0.32 0.055 38);
+  --accent-foreground: oklch(0.95 0.02 60);
+  --success: oklch(0.72 0.16 155);
+  --success-foreground: oklch(0.14 0.02 280);
+  --warning: oklch(0.80 0.17 85);
+  --warning-foreground: oklch(0.14 0.02 280);
+  --destructive: oklch(0.66 0.21 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.27 0.014 280);
+  --input: oklch(0.28 0.016 280);
+  --ring: oklch(0.72 0.20 38);
+  --card-shadow: 0 1px 2px oklch(0 0 0 / 0.35), 0 12px 32px -16px oklch(0 0 0 / 0.6);
+  /* Soft brand glow anchored top-left, fading into the deep background */
+  --ambient: radial-gradient(
+    900px circle at 15% -5%,
+    oklch(0.32 0.09 38 / 0.28),
+    transparent 55%
+  ),
+  radial-gradient(
+    800px circle at 100% 0%,
+    oklch(0.30 0.07 285 / 0.22),
+    transparent 50%
+  );
+  color-scheme: dark;
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+    /* Fluid theme switching — animate only color properties, never layout */
+    transition:
+      background-color 0.25s ease,
+      border-color 0.25s ease,
+      color 0.2s ease;
+  }
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
   body {
     background-color: var(--color-background);
+    background-image: var(--ambient);
+    background-attachment: fixed;
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
   }
   h1, h2, h3, h4, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+  ::selection { background: oklch(0.72 0.20 38 / 0.3); }
+
+  /* Don't animate colors on elements that transform (prevents lag on hover) */
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
 }
 
 @utility surface-card {
@@ -110,6 +146,16 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
+}
+
+/* Subtle lift on interactive cards — cohesive across light and dark */
+@utility surface-card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.surface-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklch, var(--color-primary) 40%, var(--color-border));
+  box-shadow: var(--shadow-pop);
 }
 
 @utility brand-gradient {
