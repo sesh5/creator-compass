@@ -86,10 +86,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "Turn competitor intelligence into a concrete weekly content plan, then track whether each video actually grew your channel. Built for creators 0–1,000 subs.",
       },
-      { property: "og:title", content: "CreatorArena" },
-      { property: "og:description", content: "AI co-pilot for new YouTube creators. Plan the next video, then measure if it worked." },
+      { property: "og:title", content: "CreatorArena — Your AI co-pilot for YouTube growth" },
+      { property: "og:description", content: "Creator Compass is an AI co-pilot for new YouTube creators, providing actionable content plans and tracking results." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "CreatorArena — Your AI co-pilot for YouTube growth" },
+      { name: "description", content: "Creator Compass is an AI co-pilot for new YouTube creators, providing actionable content plans and tracking results." },
+      { name: "twitter:description", content: "Creator Compass is an AI co-pilot for new YouTube creators, providing actionable content plans and tracking results." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ad5936dc-c40c-4cad-9f3c-b8c087445180/id-preview-4833e81c--2c5d4f54-03ce-443d-b997-94722fb6dcfd.lovable.app-1782975493623.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/ad5936dc-c40c-4cad-9f3c-b8c087445180/id-preview-4833e81c--2c5d4f54-03ce-443d-b997-94722fb6dcfd.lovable.app-1782975493623.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
