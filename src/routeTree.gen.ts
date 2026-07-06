@@ -20,6 +20,7 @@ import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedDiscoverRouteImport } from './routes/_authenticated/discover'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedTeardownChannelIdRouteImport } from './routes/_authenticated/teardown.$channelId'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as ApiPublicHooksMeasureOutcomesRouteImport } from './routes/api/public/hooks/measure-outcomes'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -77,6 +78,11 @@ const AuthenticatedTeardownChannelIdRoute =
     path: '/teardown/$channelId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksMeasureOutcomesRoute =
   ApiPublicHooksMeasureOutcomesRouteImport.update({
     id: '/api/public/hooks/measure-outcomes',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/plan': typeof AuthenticatedPlanRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/results': typeof AuthenticatedResultsRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/teardown/$channelId': typeof AuthenticatedTeardownChannelIdRoute
   '/api/public/hooks/measure-outcomes': typeof ApiPublicHooksMeasureOutcomesRoute
 }
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/plan': typeof AuthenticatedPlanRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/results': typeof AuthenticatedResultsRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/teardown/$channelId': typeof AuthenticatedTeardownChannelIdRoute
   '/api/public/hooks/measure-outcomes': typeof ApiPublicHooksMeasureOutcomesRoute
 }
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/_authenticated/plan': typeof AuthenticatedPlanRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/results': typeof AuthenticatedResultsRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/teardown/$channelId': typeof AuthenticatedTeardownChannelIdRoute
   '/api/public/hooks/measure-outcomes': typeof ApiPublicHooksMeasureOutcomesRoute
 }
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/plan'
     | '/projects'
     | '/results'
+    | '/.lovable/oauth/consent'
     | '/teardown/$channelId'
     | '/api/public/hooks/measure-outcomes'
   fileRoutesByTo: FileRoutesByTo
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/plan'
     | '/projects'
     | '/results'
+    | '/.lovable/oauth/consent'
     | '/teardown/$channelId'
     | '/api/public/hooks/measure-outcomes'
   id:
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/_authenticated/plan'
     | '/_authenticated/projects'
     | '/_authenticated/results'
+    | '/.lovable/oauth/consent'
     | '/_authenticated/teardown/$channelId'
     | '/api/public/hooks/measure-outcomes'
   fileRoutesById: FileRoutesById
@@ -173,6 +185,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicHooksMeasureOutcomesRoute: typeof ApiPublicHooksMeasureOutcomesRoute
 }
 
@@ -255,6 +268,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTeardownChannelIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/measure-outcomes': {
       id: '/api/public/hooks/measure-outcomes'
       path: '/api/public/hooks/measure-outcomes'
@@ -293,6 +313,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicHooksMeasureOutcomesRoute: ApiPublicHooksMeasureOutcomesRoute,
 }
 export const routeTree = rootRouteImport
