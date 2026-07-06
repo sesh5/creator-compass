@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://ywubhnuekivisudtuzeu.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "creatorarena-mcp",
+      "version": "0.1.0",
+      "title": "CreatorArena"
+    },
+    "tools": [
+      {
+        "name": "list_projects",
+        "title": "List projects",
+        "description": "List all CreatorArena projects owned by the signed-in user, including the YouTube channel, goal, and niche keywords for each.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_watchlist",
+        "title": "List watchlist",
+        "description": "List the competitor YouTube channels the signed-in user is watching for a given project. Pass the project_id from list_projects.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Project ID from list_projects."
+            }
+          },
+          "required": [
+            "project_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_content_plans",
+        "title": "List content plans",
+        "description": "List AI-generated weekly content plans (video concepts, hooks, titles, thumbnails) the user has generated for a project. Newest first.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "project_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Project ID from list_projects."
+            },
+            "limit": {
+              "description": "Max plans to return (default 5).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            }
+          },
+          "required": [
+            "project_id"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_teardown",
+        "title": "Get channel teardown",
+        "description": "Return the cached AI teardown analysis (why it wins, cadence, hooks, title patterns, content pillars, outlier videos) for a YouTube channel. Only channels the user has previously torn down in CreatorArena are available.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "channel_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "YouTube channel ID (e.g. UCxxxxxxxx)."
+            }
+          },
+          "required": [
+            "channel_id"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}

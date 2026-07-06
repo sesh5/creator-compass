@@ -9,7 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Sparkles, Mail, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+function safeNext(next: string | undefined): string | null {
+  if (!next) return null;
+  if (!next.startsWith("/") || next.startsWith("//")) return null;
+  return next;
+}
+
 export const Route = createFileRoute("/auth")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" ? s.next : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Sign in to CreatorArena" },
@@ -30,32 +39,52 @@ export const Route = createFileRoute("/auth")({
     ],
     links: [{ rel: "canonical", href: "https://creatorarena.lovable.app/auth" }],
   }),
-  beforeLoad: async () => {
+  beforeLoad: async ({ search }) => {
     if (typeof window === "undefined") return;
     const session = await getSettledSession();
-    if (session) throw redirect({ to: "/discover" });
+    if (session) {
+      const next = safeNext(search.next);
+      if (next) throw redirect({ href: next });
+      throw redirect({ to: "/discover" });
+    }
   },
   component: AuthPage,
 });
 
 function AuthPage() {
   const router = useRouter();
+  const { next: rawNext } = Route.useSearch();
+  const next = safeNext(rawNext);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Where to return after auth (Google OAuth round-trip and email confirmation).
+  // Must be a full same-origin URL. Preserve ?next=... so consent flows resume.
+  const returnUrl =
+    typeof window !== "undefined"
+      ? next
+        ? `${window.location.origin}/auth?next=${encodeURIComponent(next)}`
+        : window.location.origin
+      : "/";
+
+  const goPostAuth = () => {
+    if (next) window.location.href = next;
+    else router.navigate({ to: "/discover" });
+  };
+
   const onGoogle = async () => {
     setLoading(true);
     try {
-      const res = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+      const res = await lovable.auth.signInWithOAuth("google", { redirect_uri: returnUrl });
       if (res.error) {
         toast.error(res.error.message ?? "Google sign-in failed");
         setLoading(false);
         return;
       }
       if (res.redirected) return;
-      router.navigate({ to: "/discover" });
+      goPostAuth();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Sign-in failed");
       setLoading(false);
@@ -70,11 +99,9 @@ function AuthPage() {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: { emailRedirectTo: returnUrl },
         });
         if (error) throw error;
-        // When email confirmation is on, signUp succeeds but returns no session.
-        // Don't pretend the user is in — send them to confirm, then sign in.
         if (!data.session) {
           toast.success("Almost there — check your email to confirm your account, then sign in.");
           setMode("signin");
@@ -86,7 +113,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      router.navigate({ to: "/discover" });
+      goPostAuth();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Something went wrong");
     } finally {
