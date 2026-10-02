@@ -9,32 +9,31 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as McpRouteImport } from './routes/mcp'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedResultsRouteImport } from './routes/_authenticated/results'
-import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
-import { Route as AuthenticatedPlanRouteImport } from './routes/_authenticated/plan'
-import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
-import { Route as AuthenticatedDiscoverRouteImport } from './routes/_authenticated/discover'
-import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
-import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as McpRouteImport } from './routes/mcp'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
-import { Route as AuthenticatedTeardownChannelIdRouteImport } from './routes/_authenticated/teardown.$channelId'
-import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as AuthenticatedDiscoverRouteImport } from './routes/_authenticated/discover'
+import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedPlanRouteImport } from './routes/_authenticated/plan'
+import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
+import { Route as AuthenticatedResultsRouteImport } from './routes/_authenticated/results'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
+import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as AuthenticatedTeardownChannelIdRouteImport } from './routes/_authenticated/teardown.$channelId'
 import { Route as ApiPublicHooksMeasureOutcomesRouteImport } from './routes/api/public/hooks/measure-outcomes'
 
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const McpRoute = McpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -42,33 +41,31 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedResultsRoute = AuthenticatedResultsRouteImport.update({
-  id: '/results',
-  path: '/results',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedProjectsRoute = AuthenticatedProjectsRouteImport.update({
-  id: '/projects',
-  path: '/projects',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedPlanRoute = AuthenticatedPlanRouteImport.update({
-  id: '/plan',
-  path: '/plan',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
+const Char91DotmcpChar93ListToolsRoute =
+  Char91DotmcpChar93ListToolsRouteImport.update({
+    id: '/.mcp/list-tools',
+    path: '/.mcp/list-tools',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDiscoverRoute = AuthenticatedDiscoverRouteImport.update({
@@ -76,21 +73,35 @@ const AuthenticatedDiscoverRoute = AuthenticatedDiscoverRouteImport.update({
   path: '/discover',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
+const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const Char91DotwellKnownChar93OauthProtectedResourceRoute =
-  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
-    id: '/.well-known/oauth-protected-resource',
-    path: '/.well-known/oauth-protected-resource',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const Char91DotmcpChar93ListToolsRoute =
-  Char91DotmcpChar93ListToolsRouteImport.update({
-    id: '/.mcp/list-tools',
-    path: '/.mcp/list-tools',
+const AuthenticatedPlanRoute = AuthenticatedPlanRouteImport.update({
+  id: '/plan',
+  path: '/plan',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedProjectsRoute = AuthenticatedProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedResultsRoute = AuthenticatedResultsRouteImport.update({
+  id: '/results',
+  path: '/results',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char91DotmcpChar93InvokeToolToolRoute =
+  Char91DotmcpChar93InvokeToolToolRouteImport.update({
+    id: '/.mcp/invoke-tool/$tool',
+    path: '/.mcp/invoke-tool/$tool',
     getParentRoute: () => rootRouteImport,
   } as any)
 const AuthenticatedTeardownChannelIdRoute =
@@ -99,17 +110,6 @@ const AuthenticatedTeardownChannelIdRoute =
     path: '/teardown/$channelId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const Char91DotmcpChar93InvokeToolToolRoute =
-  Char91DotmcpChar93InvokeToolToolRouteImport.update({
-    id: '/.mcp/invoke-tool/$tool',
-    path: '/.mcp/invoke-tool/$tool',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
-  id: '/.lovable/oauth/consent',
-  path: '/.lovable/oauth/consent',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicHooksMeasureOutcomesRoute =
   ApiPublicHooksMeasureOutcomesRouteImport.update({
     id: '/api/public/hooks/measure-outcomes',
@@ -246,25 +246,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -274,60 +260,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/results': {
-      id: '/_authenticated/results'
-      path: '/results'
-      fullPath: '/results'
-      preLoaderRoute: typeof AuthenticatedResultsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/projects': {
-      id: '/_authenticated/projects'
-      path: '/projects'
-      fullPath: '/projects'
-      preLoaderRoute: typeof AuthenticatedProjectsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/plan': {
-      id: '/_authenticated/plan'
-      path: '/plan'
-      fullPath: '/plan'
-      preLoaderRoute: typeof AuthenticatedPlanRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/onboarding': {
-      id: '/_authenticated/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/discover': {
-      id: '/_authenticated/discover'
-      path: '/discover'
-      fullPath: '/discover'
-      preLoaderRoute: typeof AuthenticatedDiscoverRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/analytics': {
-      id: '/_authenticated/analytics'
-      path: '/analytics'
-      fullPath: '/analytics'
-      preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.mcp/list-tools': {
@@ -337,12 +288,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/teardown/$channelId': {
-      id: '/_authenticated/teardown/$channelId'
-      path: '/teardown/$channelId'
-      fullPath: '/teardown/$channelId'
-      preLoaderRoute: typeof AuthenticatedTeardownChannelIdRouteImport
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/analytics': {
+      id: '/_authenticated/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/discover': {
+      id: '/_authenticated/discover'
+      path: '/discover'
+      fullPath: '/discover'
+      preLoaderRoute: typeof AuthenticatedDiscoverRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/onboarding': {
+      id: '/_authenticated/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/plan': {
+      id: '/_authenticated/plan'
+      path: '/plan'
+      fullPath: '/plan'
+      preLoaderRoute: typeof AuthenticatedPlanRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/projects': {
+      id: '/_authenticated/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AuthenticatedProjectsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/results': {
+      id: '/_authenticated/results'
+      path: '/results'
+      fullPath: '/results'
+      preLoaderRoute: typeof AuthenticatedResultsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
@@ -351,12 +351,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.lovable/oauth/consent': {
-      id: '/.lovable/oauth/consent'
-      path: '/.lovable/oauth/consent'
-      fullPath: '/.lovable/oauth/consent'
-      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/teardown/$channelId': {
+      id: '/_authenticated/teardown/$channelId'
+      path: '/teardown/$channelId'
+      fullPath: '/teardown/$channelId'
+      preLoaderRoute: typeof AuthenticatedTeardownChannelIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/hooks/measure-outcomes': {
       id: '/api/public/hooks/measure-outcomes'
