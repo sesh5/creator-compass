@@ -103,31 +103,47 @@ export const getTeardown = createServerFn({ method: "POST" })
       )
       .join("\n");
 
+    const str = z.preprocess((v) => (v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v)), z.string());
+    const num = z.preprocess((v) => {
+      const n = Number(String(v ?? 0).replace(/[^0-9.]/g, ""));
+      return Number.isFinite(n) ? Math.round(n) : 0;
+    }, z.number());
     const videoSchema = z.object({
-      video_id: z.string(),
-      title: z.string(),
-      views: z.number().int(),
-      why: z.string(),
+      video_id: str,
+      title: str,
+      views: num,
+      why: str,
     });
     const teardownSchema = z.object({
-      why_winning: z.string(),
-      cadence: z.string(),
-      hook_style: z.string(),
-      title_patterns: z.string(),
-      thumbnail_approach: z.string(),
-      typical_length: z.string(),
-      content_pillars: z.array(z.string()),
+      why_winning: str,
+      cadence: str,
+      hook_style: str,
+      title_patterns: str,
+      thumbnail_approach: str,
+      typical_length: str,
+      content_pillars: z.preprocess(
+        (v) => (Array.isArray(v) ? v.map(String) : typeof v === "string" ? v.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean) : []),
+        z.array(z.string()),
+      ),
       best_video: videoSchema,
       worst_video: videoSchema,
     });
 
-    const prompt = `You are a YouTube growth strategist analysing the channel "${channel.title}" (${channel.subscriberCount.toLocaleString()} subs).\n\nRecent videos (sorted best-to-worst by outlier score = views ÷ subscriber count):\n${videosForPrompt}\n\nProduce a concise teardown. content_pillars should have 3 items. best_video/worst_video video_id must be one of the ids above.`;
+    const prompt = `You are a YouTube growth strategist analysing the channel "${channel.title}" (${channel.subscriberCount.toLocaleString()} subs).\n\nRecent videos (sorted best-to-worst by outlier score = views ÷ subscriber count):\n${videosForPrompt}\n\nProduce a concise teardown. content_pillars should have 3 items. best_video/worst_video video_id must be one of the ids above. views must be a plain integer.`;
 
-    const { object: teardown } = await generateObject({
-      model: ai(DEFAULT_MODEL),
-      schema: teardownSchema,
-      prompt,
-    });
+    let teardown: z.infer<typeof teardownSchema>;
+    try {
+      const res = await generateObject({ model: ai(DEFAULT_MODEL), schema: teardownSchema, prompt });
+      teardown = res.object;
+    } catch {
+      // Fallback: ask for raw JSON and parse leniently
+      const { generateText } = await import("ai");
+      const { text } = await generateText({
+        model: ai(DEFAULT_MODEL),
+        prompt: `${prompt}\n\nReturn ONLY a JSON object with keys: why_winning, cadence, hook_style, title_patterns, thumbnail_approach, typical_length (strings), content_pillars (array of strings), best_video and worst_video (objects with video_id, title, views, why).`,
+      });
+      teardown = teardownSchema.parse(extractJson(text));
+    }
 
     const row = {
       channel_id: channel.id,
